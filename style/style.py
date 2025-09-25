@@ -665,5 +665,30 @@ select:focus {
 .main .block-container {
     animation: fadeInUp 0.6s ease-out;
 }
+
+/* Add to your existing CUSTOM_CSS */
+
+/* Dashboard text consistency */
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+    color: #1f2937 !important;
+}
+
+.stMarkdown p, .stMarkdown li {
+    color: #374151 !important;
+    font-size: 1rem !important;
+}
+
+/* Metric styling */
+div[data-testid="metric-container"] label {
+    color: #6b7280 !important;
+    font-size: 0.875rem !important;
+}
+
+div[data-testid="metric-container"] div[data-testid="metric-value"] {
+    color: #1f2937 !important;
+    font-size: 1.875rem !important;
+    font-weight: 600 !important;
+}
+
 </style>
 """
