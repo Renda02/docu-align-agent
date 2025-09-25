@@ -27,7 +27,7 @@ class Runner:
         client = OpenAI(api_key=self.api_key)
         try:
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": agent.instructions},
                     {"role": "user", "content": user_input}
