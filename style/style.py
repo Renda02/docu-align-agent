@@ -67,6 +67,7 @@ CUSTOM_CSS = """
 }
 
 /* Navigation header styling */
+./* Navigation header styling */
 .nav-header {
     background-color: var(--nav-bg);
     border-bottom: 1px solid var(--border-primary);
@@ -111,7 +112,7 @@ CUSTOM_CSS = """
 }
 
 .nav-title {
-    font-size: 1.3rem;
+    font-size: 3rem;
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.02em;
@@ -137,6 +138,10 @@ CUSTOM_CSS = """
     color: var(--accent-primary);
 }
 
+/* Hide Streamlit default header */
+header[data-testid="stHeader"] {
+    display: none;
+}
 
 
 .nav-signin {
@@ -156,10 +161,18 @@ CUSTOM_CSS = """
     color: white !important;
 }
 
-/* Hide Streamlit default header */
+/*
 header[data-testid="stHeader"] {
-    display: none;
+    display: block !important;
+    visibility: visible !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999999 !important;
+    background: blue !important;  /* 
+    height: auto !important;
+    border-bottom: 1px solid var(--border-primary) !important;
 }
+*/
 
 /* Add this to ensure deploy button visibility */
 div[data-testid="stToolbar"] {
@@ -830,6 +843,7 @@ hr {
     background-color: var(--border-primary);
     margin: 2rem 0;
 }
+
 
 /* Download button special styling */
 button[data-testid="stDownloadButton"] {

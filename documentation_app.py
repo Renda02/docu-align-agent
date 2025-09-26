@@ -77,13 +77,7 @@ st.markdown("""
 <div class="nav-header-static">
     <div class="nav-container">
         <div class="nav-brand">
-            <span class="nav-logo">📝</span>
-            <span class="nav-title">DocuALIGN</span>
-        </div>
-        <div class="nav-links">
-            <a href="#features" class="nav-link">Features</a>
-            <a href="#pricing" class="nav-link">Pricing</a>
-            <a href="#docs" class="nav-link">Docs</a>
+            <span class="nav-title">DocuAlign</span>
         </div>
     </div>
 </div>
@@ -131,13 +125,13 @@ if st.session_state.get("page") == "evaluations":
 
 # Modern headline with highlighted text
 st.markdown(
-    '<div class="headline">Transform your <span class="highlight">how-to guides</span> with AI-powered precision</div>',
+    '<div class="headline">Transform your <span class="highlight">how-to guides</span> with our AI-powered documentation system</div>',
     unsafe_allow_html=True
 )
 
 # Descriptive subtext
 st.markdown(
-    '<div class="subtext">Upload your draft how-to content and watch as our AI transforms it into a structured, professional guide following The Good Docs Project template standards.</div>',
+    '<div class="subtext">Upload your draft how-to content and watch as our AI improves it into a structured, how-to guide following The Good Docs Project template standards.</div>',
     unsafe_allow_html=True
 )
 
@@ -303,11 +297,11 @@ if st.session_state.get("final_document"):
         st.markdown("#### 💡 Quick Insights")
         analysis_text = st.session_state["analysis_report"].lower()
         if "missing" in analysis_text or "unclear" in analysis_text:
-            st.warning("⚠️ Guide has unclear steps or missing template sections")
+            st.warning("⚠️ The doc has unclear steps or missing template sections")
         if "improvement" in analysis_text or "better" in analysis_text:
-            st.info("💡 AI found opportunities to improve step clarity and structure")
+            st.info("💡 We found opportunities to improve step clarity and structure")
         if "good" in analysis_text or "clear" in analysis_text:
-            st.success("✅ Guide shows good task-oriented structure")
+            st.success("✅ The doc shows good task-oriented structure")
             
         st.divider()
         
@@ -322,7 +316,7 @@ if st.session_state.get("final_document"):
         📊 Change: {improved_words - original_words:+d} words
         """)
         
-        st.markdown("### 💡 Professional Writing Tips")
+        st.markdown("### 💡 Tech 101 writing tips")
         st.info("""
         **Tips:**
         • Use active voice over passive
@@ -334,7 +328,7 @@ if st.session_state.get("final_document"):
         """)
 
     with tab2:
-        st.markdown("### 📝 Your Draft How-to Guide")
+        st.markdown("### 📝 Your draft is ready")
         
         # Improved document display
         st.text_area(
@@ -349,11 +343,11 @@ if st.session_state.get("final_document"):
         
         with col1:
             st.download_button(
-                label="⬇️ Download How-to Guide",
+                label="⬇️ Download as Markdown",
                 data=st.session_state["final_document"],
-                file_name="how_to_guide.md",
+                file_name="Draft",
                 mime="text/markdown",
-                help="Download your professional how-to guide as a Markdown file"
+                help="Download as Markdown"
             )
         
         with col2:
@@ -431,7 +425,7 @@ if st.session_state.get("final_document"):
         
         # User feedback collection
         with st.expander("💬 Provide Feedback (Optional)", expanded=False):
-            st.markdown("Help us improve DocuALIGN by rating this output:")
+            st.markdown("Help us improve DocuAlign by rating this output:")
             
             col1, col2 = st.columns([2, 3])
             
@@ -452,7 +446,7 @@ if st.session_state.get("final_document"):
             
             if st.button("📝 Submit Feedback"):
                 # Here you could save the feedback to your evaluation system
-                st.success("🙏 Thank you for your feedback! This helps us improve DocuALIGN.")
+                st.success("🙏 Thank you for your feedback! This helps us improve DocuAlign.")
                 
         # Quick access to evaluation dashboard
         st.markdown("---")

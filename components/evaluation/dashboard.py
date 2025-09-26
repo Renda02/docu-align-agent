@@ -9,7 +9,7 @@ from components.evaluation.evaluator import DocumentEvaluator
 def show_evaluation_dashboard():
     """Display the enhanced evaluation dashboard with template compliance and style precision"""
     
-    st.title("📊 DocuALIGN Enhanced Evaluation Dashboard")
+    st.title("📊 DocuAlign evaluation dashboard")
     st.markdown("Template compliance and style violation precision/recall tracking")
     
     # Initialize evaluator

@@ -2,32 +2,27 @@ import streamlit as st
 from openai import OpenAI
 import os
 
-# Define a class for an Agent. It's a simple data structure to hold the name and instructions.
+# Define a class for an Agent. It's a simple data structure to hold the name, instructions, and model.
 class Agent:
-    def __init__(self, name: str, instructions: str):
+    def __init__(self, name: str, instructions: str, model: str = "gpt-3.5-turbo"):
         self.name = name
         self.instructions = instructions
+        self.model = model  # Add model parameter with default fallback
 
-# This is a placeholder for your LLM runner. In a real application, this is where you
-# would make the API call to your language model. For this example, it will simply
-# print a message indicating which agent is being "run" and return a placeholder response.
+# This is your LLM runner that now supports different models per agent.
 class Runner:
     def __init__(self, api_key: str):
-        # In a real application, you would initialize your API client here.
-        # from openai import OpenAI
-        # self.client = OpenAI(api_key=api_key)
         self.api_key = api_key
         print("Runner initialized with API key.")
 
     async def run(self, agent, user_input):
-        print(f"--- Running Agent: {agent.name} ---")
+        print(f"--- Running Agent: {agent.name} with model: {agent.model} ---")
         
-        # This is where your actual LLM API call would go.
-        # For example, using the OpenAI SDK:
+        # Make API call using the agent's specified model
         client = OpenAI(api_key=self.api_key)
         try:
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=agent.model,  # Use agent's specified model
                 messages=[
                     {"role": "system", "content": agent.instructions},
                     {"role": "user", "content": user_input}
@@ -35,7 +30,7 @@ class Runner:
             )
             final_output = response.choices[0].message.content
         except Exception as e:
-            final_output = f"API call failed: {e}"
+            final_output = f"API call failed with {agent.model}: {e}"
 
         return MockResult(final_output)
         
