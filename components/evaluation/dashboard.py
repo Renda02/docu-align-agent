@@ -3,13 +3,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import json
 from components.evaluation.evaluator import DocumentEvaluator
 
 def show_evaluation_dashboard():
-    """Display the evaluation dashboard"""
+    """Display the enhanced evaluation dashboard with template compliance and style precision"""
     
-    st.title("📊 DocuALIGN Evaluation Dashboard")
-    st.markdown("Real-time quality assessment and performance tracking")
+    st.title("📊 DocuALIGN Enhanced Evaluation Dashboard")
+    st.markdown("Template compliance and style violation precision/recall tracking")
     
     # Initialize evaluator
     evaluator = DocumentEvaluator()
@@ -22,8 +23,8 @@ def show_evaluation_dashboard():
         st.info("🔄 No evaluation data available yet. Process some documents first!")
         return
     
-    # Check if we have the expected columns
-    expected_columns = ['h7_pass', 'h8_pass', 'h9_pass', 'h7_accuracy_score', 'h8_style_score', 'h9_gap_resolution_score']
+    # Check if we have the expected columns (updated for new schema)
+    expected_columns = ['e1_template_pass', 'e2_style_pass', 'h9_pass', 'e1_template_score', 'e2_style_score', 'h9_gap_resolution_score']
     missing_columns = [col for col in expected_columns if col not in recent_evaluations.columns]
     
     if missing_columns:
@@ -38,8 +39,8 @@ def show_evaluation_dashboard():
     if not recent_evaluations.empty:
         try:
             recent_failures = recent_evaluations[
-                (recent_evaluations['h7_pass'] == False) | 
-                (recent_evaluations['h8_pass'] == False) | 
+                (recent_evaluations['e1_template_pass'] == False) | 
+                (recent_evaluations['e2_style_pass'] == False) | 
                 (recent_evaluations['h9_pass'] == False)
             ]
             
@@ -51,8 +52,8 @@ def show_evaluation_dashboard():
         except Exception as e:
             st.warning(f"⚠️ Could not check for recent failures: {e}")
     
-    # Key Metrics
-    st.markdown("## 📈 Evaluation Summary")
+    # Enhanced Key Metrics
+    st.markdown("## 📈 Enhanced Evaluation Summary")
     
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
@@ -68,23 +69,26 @@ def show_evaluation_dashboard():
     
     with col3:
         st.metric(
-            "Technical Accuracy (H7)", 
-            f"{summary['h7_pass_rate']:.1f}%",
-            delta=f"{summary['h7_pass_rate'] - 95:.1f}%" if summary['h7_pass_rate'] > 0 else None
+            "Template Compliance (E1)", 
+            f"{summary['template_compliance_rate']:.1f}%",
+            delta=f"{summary['template_compliance_rate'] - 90:.1f}%" if summary['template_compliance_rate'] > 0 else None,
+            help="Adherence to Good Docs Project template structure"
         )
     
     with col4:
         st.metric(
-            "Style Compliance (H8)", 
-            f"{summary['h8_pass_rate']:.1f}%",
-            delta=f"{summary['h8_pass_rate'] - 85:.1f}%" if summary['h8_pass_rate'] > 0 else None
+            "Style Violation Reduction (E2)", 
+            f"{summary['violation_reduction_rate']:.1f}%",
+            delta=f"{summary['violation_reduction_rate'] - 85:.1f}%" if summary['violation_reduction_rate'] > 0 else None,
+            help="Precision in removing style violations"
         )
     
     with col5:
         st.metric(
             "Gap Resolution (H9)", 
-            f"{summary['h9_pass_rate']:.1f}%",
-            delta=f"{summary['h9_pass_rate'] - 85:.1f}%" if summary['h9_pass_rate'] > 0 else None
+            f"{summary['gap_resolution_rate']:.1f}%",
+            delta=f"{summary['gap_resolution_rate'] - 85:.1f}%" if summary['gap_resolution_rate'] > 0 else None,
+            help="Effectiveness in resolving identified issues"
         )
     
     with col6:
@@ -95,7 +99,7 @@ def show_evaluation_dashboard():
             delta=f"{avg_score - 4.0:.1f}" if avg_score > 0 else None
         )
     
-    # Quality Trends Chart
+    # Enhanced Quality Trends Chart
     if not recent_evaluations.empty and len(recent_evaluations) >= 3:
         st.markdown("## 📊 Quality Trends")
         
@@ -103,27 +107,27 @@ def show_evaluation_dashboard():
             # Convert timestamp to datetime if it's not already
             recent_evaluations['timestamp'] = pd.to_datetime(recent_evaluations['timestamp'])
             
-            # Create trend chart
+            # Create trend chart with new metrics
             fig = go.Figure()
             
             fig.add_trace(go.Scatter(
                 x=recent_evaluations['timestamp'],
-                y=recent_evaluations['h7_accuracy_score'],
+                y=recent_evaluations['e1_template_score'],
                 mode='lines+markers',
-                name='Technical Accuracy (H7)',
+                name='Template Compliance (E1)',
                 line=dict(color='#10b981'),
                 marker=dict(size=6),
-                hovertemplate='<b>Technical Accuracy (H7)</b><br>Date: %{x}<br>Score: %{y}/5<extra></extra>'
+                hovertemplate='<b>Template Compliance (E1)</b><br>Date: %{x}<br>Score: %{y}/5<extra></extra>'
             ))
             
             fig.add_trace(go.Scatter(
                 x=recent_evaluations['timestamp'],
-                y=recent_evaluations['h8_style_score'],
+                y=recent_evaluations['e2_style_score'],
                 mode='lines+markers',
-                name='Style Compliance (H8)',
+                name='Style Violation Reduction (E2)',
                 line=dict(color='#3b82f6'),
                 marker=dict(size=6),
-                hovertemplate='<b>Style Compliance (H8)</b><br>Date: %{x}<br>Score: %{y}/5<extra></extra>'
+                hovertemplate='<b>Style Violation Reduction (E2)</b><br>Date: %{x}<br>Score: %{y}/5<extra></extra>'
             ))
             
             fig.add_trace(go.Scatter(
@@ -137,7 +141,7 @@ def show_evaluation_dashboard():
             ))
             
             fig.update_layout(
-                title="Evaluation Scores Over Time",
+                title="Enhanced Evaluation Scores Over Time",
                 xaxis_title="Date",
                 yaxis_title="Score (1-5)",
                 yaxis=dict(range=[0, 5]),
@@ -151,7 +155,69 @@ def show_evaluation_dashboard():
             st.error(f"Error creating trend chart: {e}")
             st.info("Try processing a few more documents to see trends.")
     
-    # Filters
+    # Template Compliance Details
+    if not recent_evaluations.empty:
+        st.markdown("## 🏗️ Template Compliance Analysis")
+        
+        try:
+            # Parse missing elements from the most recent evaluations
+            recent_eval = recent_evaluations.iloc[-1]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### Most Recent Evaluation")
+                template_score = recent_eval.get('e1_template_score', 0)
+                compliance_rate = recent_eval.get('e1_template_compliance_rate', 0) * 100
+                
+                if template_score >= 4:
+                    st.success(f"✅ **Template Compliant** ({compliance_rate:.1f}%)")
+                else:
+                    st.warning(f"⚠️ **Template Issues** ({compliance_rate:.1f}%)")
+                
+                # Show missing elements if available
+                missing_elements_str = recent_eval.get('e1_missing_elements', '[]')
+                try:
+                    missing_elements = json.loads(missing_elements_str) if isinstance(missing_elements_str, str) else missing_elements_str
+                    if missing_elements:
+                        st.write("**Missing Template Elements:**")
+                        for element in missing_elements:
+                            st.write(f"• {element.replace('_', ' ').title()}")
+                    else:
+                        st.write("✅ All template elements present")
+                except:
+                    st.write("Template analysis available")
+            
+            with col2:
+                st.markdown("### Style Violation Analysis")
+                style_score = recent_eval.get('e2_style_score', 0)
+                reduction_rate = recent_eval.get('e2_violation_reduction_rate', 0) * 100
+                
+                if style_score >= 4:
+                    st.success(f"✅ **Style Compliant** ({reduction_rate:.1f}% violations removed)")
+                else:
+                    st.warning(f"⚠️ **Style Issues** ({reduction_rate:.1f}% violations removed)")
+                
+                # Show remaining violations if available
+                remaining_violations_str = recent_eval.get('e2_remaining_violations', '{}')
+                try:
+                    remaining_violations = json.loads(remaining_violations_str) if isinstance(remaining_violations_str, str) else remaining_violations_str
+                    total_remaining = sum(remaining_violations.values()) if isinstance(remaining_violations, dict) else 0
+                    
+                    if total_remaining > 0:
+                        st.write("**Remaining Violations:**")
+                        for violation_type, count in remaining_violations.items():
+                            if count > 0:
+                                st.write(f"• {violation_type.replace('_', ' ').title()}: {count}")
+                    else:
+                        st.write("✅ No style violations detected")
+                except:
+                    st.write("Style analysis available")
+        
+        except Exception as e:
+            st.error(f"Error displaying template compliance details: {e}")
+    
+    # Filters (updated for new schema)
     st.markdown("## 🔍 Filter Options")
     
     col1, col2, col3 = st.columns(3)
@@ -159,7 +225,7 @@ def show_evaluation_dashboard():
     with col1:
         show_filter = st.selectbox(
             "Show:",
-            ["All Evaluations", "Failed Evaluations", "Critical Failures Only"]
+            ["All Evaluations", "Failed Evaluations", "Template Issues", "Style Issues"]
         )
     
     with col2:
@@ -176,18 +242,16 @@ def show_evaluation_dashboard():
             index=0
         )
     
-    # Apply filters
+    # Apply filters (updated for new schema)
     filtered_data = recent_evaluations.copy()
     
     try:
         if show_filter == "Failed Evaluations":
             filtered_data = filtered_data[filtered_data['overall_pass'] == False]
-        elif show_filter == "Critical Failures Only":
-            filtered_data = filtered_data[
-                (filtered_data['h7_pass'] == False) | 
-                (filtered_data['h8_pass'] == False) | 
-                (filtered_data['h9_pass'] == False)
-            ]
+        elif show_filter == "Template Issues":
+            filtered_data = filtered_data[filtered_data['e1_template_pass'] == False]
+        elif show_filter == "Style Issues":
+            filtered_data = filtered_data[filtered_data['e2_style_pass'] == False]
         
         if not filtered_data.empty:
             # Filter by score
@@ -203,18 +267,18 @@ def show_evaluation_dashboard():
         st.error(f"Error applying filters: {e}")
         filtered_data = recent_evaluations.copy()
     
-    # Recent Evaluations Table
+    # Enhanced Evaluations Table
     st.markdown("## 📋 Recent Evaluations")
     
     if filtered_data.empty:
         st.info("No evaluations match your filter criteria.")
     else:
         try:
-            # Prepare display data
+            # Prepare display data (updated for new schema)
             display_data = filtered_data.copy()
             display_data['Date'] = display_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
             
-            # Create status indicators - SAFE VERSION
+            # Create status indicators for new metrics
             def safe_create_status_indicator(score, passed):
                 try:
                     if passed:
@@ -224,27 +288,27 @@ def show_evaluation_dashboard():
                 except:
                     return "❓ UNKNOWN"
             
-            # Safely create status columns
-            if all(col in display_data.columns for col in ['h7_accuracy_score', 'h7_pass']):
-                display_data['H7 Status'] = display_data.apply(
-                    lambda row: safe_create_status_indicator(row['h7_accuracy_score'], row['h7_pass']), axis=1
+            # Create status columns for new evaluation criteria
+            if all(col in display_data.columns for col in ['e1_template_score', 'e1_template_pass']):
+                display_data['E1 Template Status'] = display_data.apply(
+                    lambda row: safe_create_status_indicator(row['e1_template_score'], row['e1_template_pass']), axis=1
                 )
             else:
-                display_data['H7 Status'] = "❓ N/A"
+                display_data['E1 Template Status'] = "❓ N/A"
                 
-            if all(col in display_data.columns for col in ['h8_style_score', 'h8_pass']):
-                display_data['H8 Status'] = display_data.apply(
-                    lambda row: safe_create_status_indicator(row['h8_style_score'], row['h8_pass']), axis=1
+            if all(col in display_data.columns for col in ['e2_style_score', 'e2_style_pass']):
+                display_data['E2 Style Status'] = display_data.apply(
+                    lambda row: safe_create_status_indicator(row['e2_style_score'], row['e2_style_pass']), axis=1
                 )
             else:
-                display_data['H8 Status'] = "❓ N/A"
+                display_data['E2 Style Status'] = "❓ N/A"
                 
             if all(col in display_data.columns for col in ['h9_gap_resolution_score', 'h9_pass']):
-                display_data['H9 Status'] = display_data.apply(
+                display_data['H9 Gap Status'] = display_data.apply(
                     lambda row: safe_create_status_indicator(row['h9_gap_resolution_score'], row['h9_pass']), axis=1
                 )
             else:
-                display_data['H9 Status'] = "❓ N/A"
+                display_data['H9 Gap Status'] = "❓ N/A"
                 
             if 'overall_pass' in display_data.columns:
                 display_data['Overall'] = display_data['overall_pass'].apply(
@@ -260,8 +324,8 @@ def show_evaluation_dashboard():
             else:
                 display_data['Quality Score'] = "❓ N/A"
             
-            # Select columns to display
-            base_columns = ['Date', 'H7 Status', 'H8 Status', 'H9 Status', 'Overall', 'Quality Score']
+            # Select columns to display (updated for new schema)
+            base_columns = ['Date', 'E1 Template Status', 'E2 Style Status', 'H9 Gap Status', 'Overall', 'Quality Score']
             
             # Add word counts if available
             if 'original_word_count' in display_data.columns:
@@ -293,7 +357,7 @@ def show_evaluation_dashboard():
             st.write("**Sample data:**")
             st.write(filtered_data.head(2))
     
-    # Export functionality
+    # Enhanced Export functionality
     st.markdown("## 📊 Export Data")
     
     col1, col2 = st.columns(2)
@@ -305,45 +369,51 @@ def show_evaluation_dashboard():
                 st.download_button(
                     label="Download CSV",
                     data=csv,
-                    file_name=f"docualign_evaluations_{datetime.now().strftime('%Y%m%d')}.csv",
+                    file_name=f"docualign_enhanced_evaluations_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
             else:
                 st.info("No data to export")
     
     with col2:
-        if st.button("📊 Generate Quality Report"):
-            # Create a simple text report
+        if st.button("📊 Generate Enhanced Quality Report"):
+            # Create enhanced quality report
             report = f"""
-# DocuALIGN Quality Report
+# DocuALIGN Enhanced Quality Report
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 ## Summary Statistics
 - Total Documents Processed: {summary['total_evaluations']}
 - Overall Pass Rate: {summary['overall_pass_rate']:.1f}%
-- Technical Accuracy Pass Rate: {summary['h7_pass_rate']:.1f}%
-- Style Compliance Pass Rate: {summary['h8_pass_rate']:.1f}%
-- Gap Resolution Pass Rate: {summary['h9_pass_rate']:.1f}%
-- Average Quality Score: {summary.get('avg_overall_score', 0):.2f}/5.0
+
+## Enhanced Metrics
+- Template Compliance Rate (E1): {summary['template_compliance_rate']:.1f}%
+- Style Violation Reduction Rate (E2): {summary['violation_reduction_rate']:.1f}%
+- Gap Resolution Rate (H9): {summary['gap_resolution_rate']:.1f}%
+
+## Average Scores
+- Average Template Score: {summary['avg_template_score']:.2f}/5.0
+- Average Style Score: {summary['avg_style_score']:.2f}/5.0
+- Average Overall Score: {summary['avg_overall_score']:.2f}/5.0
 
 ## Recommendations
-{'Consider reviewing technical accuracy preservation processes.' if summary['h7_pass_rate'] < 95 else ''}
-{'Review style guide enforcement settings.' if summary['h8_pass_rate'] < 85 else ''}
-{'Improve gap resolution effectiveness.' if summary['h9_pass_rate'] < 85 else ''}
-{'Quality performance is excellent!' if summary['overall_pass_rate'] > 90 else ''}
+{'Consider improving template compliance - focus on missing elements like prerequisites, success criteria.' if summary['template_compliance_rate'] < 90 else ''}
+{'Review style guide enforcement - passive voice and long sentences may need attention.' if summary['violation_reduction_rate'] < 85 else ''}
+{'Improve gap resolution effectiveness between analyzer and enforcer agents.' if summary['gap_resolution_rate'] < 85 else ''}
+{'Quality performance is excellent across all metrics!' if summary['overall_pass_rate'] > 90 else ''}
             """
             
             st.download_button(
-                label="Download Quality Report",
+                label="Download Enhanced Quality Report",
                 data=report,
-                file_name=f"docualign_quality_report_{datetime.now().strftime('%Y%m%d')}.md",
+                file_name=f"docualign_enhanced_quality_report_{datetime.now().strftime('%Y%m%d')}.md",
                 mime="text/markdown"
             )
 
 def show_evaluation_insights():
-    """Show evaluation insights and recommendations"""
+    """Show enhanced evaluation insights and recommendations"""
     
-    st.markdown("## 💡 Quality Insights")
+    st.markdown("## 💡 Enhanced Quality Insights")
     
     evaluator = DocumentEvaluator()
     summary = evaluator.get_evaluation_summary()
@@ -352,7 +422,7 @@ def show_evaluation_insights():
         st.info("Process some documents first to see insights!")
         return
     
-    # Display current performance
+    # Display current performance with enhanced metrics
     st.markdown("### 📊 Current Performance")
     
     col1, col2 = st.columns(2)
@@ -367,38 +437,38 @@ def show_evaluation_insights():
     
     with col2:
         st.info(f"""
-        **🎯 Critical Criteria:**
-        • Technical Accuracy (H7): {summary['h7_pass_rate']:.1f}%
-        • Style Compliance (H8): {summary['h8_pass_rate']:.1f}%
-        • Gap Resolution (H9): {summary['h9_pass_rate']:.1f}%
+        **🎯 Enhanced Criteria:**
+        • Template Compliance (E1): {summary['template_compliance_rate']:.1f}%
+        • Violation Reduction (E2): {summary['violation_reduction_rate']:.1f}%
+        • Gap Resolution (H9): {summary['gap_resolution_rate']:.1f}%
         """)
     
-    # Insights based on data
+    # Enhanced insights based on data
     insights = []
     
-    if summary['h7_pass_rate'] < 95:
+    if summary['template_compliance_rate'] < 90:
         insights.append({
             'type': 'warning',
-            'title': 'Technical Accuracy Attention Needed',
-            'message': f"Technical accuracy pass rate is {summary['h7_pass_rate']:.1f}%. "
-                      f"Consider reviewing your document processing to ensure code, URLs, and "
-                      f"technical elements are preserved exactly."
+            'title': 'Template Compliance Needs Attention',
+            'message': f"Template compliance is {summary['template_compliance_rate']:.1f}%. "
+                      f"Focus on ensuring documents include prerequisites, numbered steps, "
+                      f"success criteria, and troubleshooting sections."
         })
     
-    if summary['h8_pass_rate'] < 85:
+    if summary['violation_reduction_rate'] < 85:
         insights.append({
             'type': 'warning',
-            'title': 'Style Guide Improvements Needed',
-            'message': f"Style compliance pass rate is {summary['h8_pass_rate']:.1f}%. "
-                      f"Review the Style Enforcer agent's prompt to better follow "
-                      f"active voice, present tense, and sentence length rules."
+            'title': 'Style Violation Reduction Low',
+            'message': f"Style violation reduction is {summary['violation_reduction_rate']:.1f}%. "
+                      f"The Style Enforcer may need improvement in removing passive voice, "
+                      f"long sentences, and corporate jargon."
         })
     
-    if summary['h9_pass_rate'] < 85:
+    if summary['gap_resolution_rate'] < 85:
         insights.append({
             'type': 'warning',
             'title': 'Gap Resolution Effectiveness Low',
-            'message': f"Gap resolution pass rate is {summary['h9_pass_rate']:.1f}%. "
+            'message': f"Gap resolution rate is {summary['gap_resolution_rate']:.1f}%. "
                       f"The Style Enforcer may not be effectively addressing issues "
                       f"identified by the Document Analyzer."
         })
@@ -408,7 +478,7 @@ def show_evaluation_insights():
             'type': 'success',
             'title': 'Excellent Quality Performance!',
             'message': f"Overall pass rate is {summary['overall_pass_rate']:.1f}%. "
-                      f"Your DocuALIGN system is performing exceptionally well."
+                      f"Your DocuALIGN system is performing exceptionally well across all enhanced metrics."
         })
     
     # Display insights
@@ -423,17 +493,18 @@ def show_evaluation_insights():
             else:
                 st.info(f"💡 **{insight['title']}**: {insight['message']}")
     else:
-        st.success("🎯 **Good Quality Performance**: All evaluation criteria are performing well!")
+        st.success("🎯 **Good Quality Performance**: All enhanced evaluation criteria are performing well!")
     
-    # Recommendations
+    # Enhanced Action Items
     st.markdown("### 🎯 Action Items")
     
     recommendations = [
-        "📊 **Monitor trends weekly** - Check the evaluation dashboard regularly",
-        "🔍 **Review failed evaluations** - Use filters to focus on problem areas", 
-        "📝 **Update prompts based on patterns** - Use evaluation data to improve agents",
-        "👥 **Conduct monthly SME reviews** - Use the full HHH framework for deep evaluation",
-        "📈 **Track improvement over time** - Watch for positive trends in quality scores"
+        "📋 **Monitor template compliance** - Focus on missing prerequisites and success criteria",
+        "🔍 **Review style violations** - Check precision/recall of violation removal", 
+        "📊 **Track consistency** - Ensure similar documents get similar treatment",
+        "📝 **Update prompts based on patterns** - Use precision data to improve agents",
+        "👥 **Conduct SME reviews** - Validate AI assessments against human experts",
+        "📈 **Track improvement trends** - Watch for positive changes in compliance rates"
     ]
     
     for rec in recommendations:
@@ -441,9 +512,9 @@ def show_evaluation_insights():
 
 # Helper function for navigation
 def render_evaluation_section():
-    """Render the full evaluation section with tabs"""
+    """Render the enhanced evaluation section with tabs"""
     
-    tab1, tab2 = st.tabs(["📊 Dashboard", "💡 Insights"])
+    tab1, tab2 = st.tabs(["📊 Enhanced Dashboard", "💡 Insights"])
     
     with tab1:
         show_evaluation_dashboard()

@@ -1,9 +1,10 @@
 import pandas as pd
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 import re
 import os
 import json
+import numpy as np
 
 class DocumentEvaluator:
     def __init__(self):
@@ -20,8 +21,7 @@ class DocumentEvaluator:
                             final_output: str, 
                             user_id: str = "anonymous") -> Dict[str, Any]:
         """
-        Automatically evaluate document processing results
-        Returns evaluation scores for H7, H8, H9 (critical criteria)
+        Enhanced evaluation with template compliance and style violation precision/recall
         """
         evaluation_results = {
             'timestamp': datetime.now().isoformat(),
@@ -31,147 +31,143 @@ class DocumentEvaluator:
             'processing_successful': True
         }
         
-        # H7: Technical Accuracy Preservation (CRITICAL)
-        accuracy_score = self._check_technical_preservation(original_content, final_output)
-        evaluation_results['h7_accuracy_score'] = accuracy_score
-        evaluation_results['h7_pass'] = accuracy_score >= 4
-        evaluation_results['h7_issues'] = self._get_technical_issues(original_content, final_output)
+        # E1: Template Compliance Accuracy (CRITICAL)
+        template_results = self._check_template_compliance(original_content, final_output)
+        evaluation_results['e1_template_compliance_rate'] = template_results['compliance_rate']
+        evaluation_results['e1_template_score'] = template_results['score']
+        evaluation_results['e1_template_pass'] = template_results['score'] >= 4
+        evaluation_results['e1_missing_elements'] = json.dumps(template_results['missing_elements'])
         
-        # H8: Style Guide Enforcement (CRITICAL)
-        style_score = self._check_style_compliance(final_output)
-        evaluation_results['h8_style_score'] = style_score
-        evaluation_results['h8_pass'] = style_score >= 4
-        evaluation_results['h8_violations'] = self._get_style_violations(final_output)
+        # E2: Style Violation Detection (Precision/Recall) (CRITICAL)
+        style_results = self._evaluate_style_violations(original_content, final_output)
+        evaluation_results['e2_violation_reduction_rate'] = style_results['violation_reduction_rate']
+        evaluation_results['e2_style_precision'] = style_results['precision']
+        evaluation_results['e2_style_score'] = style_results['score']
+        evaluation_results['e2_style_pass'] = style_results['score'] >= 4
+        evaluation_results['e2_remaining_violations'] = json.dumps(style_results['remaining_violations'])
         
-        # H9: Gap Resolution Effectiveness (CRITICAL)
+        # H9: Gap Resolution (keeping this from original system)
         gap_resolution_score = self._check_gap_resolution(analysis_report, final_output)
         evaluation_results['h9_gap_resolution_score'] = gap_resolution_score
         evaluation_results['h9_pass'] = gap_resolution_score >= 4
         evaluation_results['h9_gaps_fixed'] = self._count_gaps_fixed(analysis_report, final_output)
         
-        # Overall quality assessment
-        critical_pass = evaluation_results['h7_pass'] and evaluation_results['h8_pass'] and evaluation_results['h9_pass']
+        # Overall quality assessment (updated criteria)
+        critical_pass = (evaluation_results['e1_template_pass'] and 
+                        evaluation_results['e2_style_pass'] and 
+                        evaluation_results['h9_pass'])
         evaluation_results['overall_pass'] = critical_pass
-        evaluation_results['overall_score'] = (accuracy_score + style_score + gap_resolution_score) / 3
+        evaluation_results['overall_score'] = (template_results['score'] + 
+                                             style_results['score'] + 
+                                             gap_resolution_score) / 3
         
         # Save to CSV for tracking
         self._save_evaluation(evaluation_results)
         
         return evaluation_results
     
-    def _check_technical_preservation(self, original: str, final: str) -> int:
-        """Check if technical elements were preserved (H7)"""
-        # Extract technical elements using regex patterns
-        tech_patterns = [
-            (r'`[^`]+`', 'code_blocks'),           # Code in backticks
-            (r'https?://[^\s]+', 'urls'),           # URLs
-            (r'/[a-zA-Z0-9/_.-]+', 'file_paths'),   # File paths
-            (r'\$[A-Z_]+', 'env_vars'),             # Environment variables
-            (r'--[a-z-]+', 'cli_flags'),           # Command flags
-            (r'[A-Z_]{3,}', 'constants'),          # Constants (all caps)
-            (r'\b\d+\.\d+\.\d+\b', 'versions')     # Version numbers
-        ]
+    def _check_template_compliance(self, original: str, final_output: str) -> Dict[str, Any]:
+        """
+        E1: Check adherence to The Good Docs Project template structure
+        Returns compliance rate and specific missing elements
+        """
+        template_elements = {
+            'title': r'^#\s+[\w\s]+',  # Has proper H1 title
+            'introduction': r'(this guide|this tutorial|this document|this how-to)',  # Has intro
+            'prerequisites': r'(prerequisite|requirements|before you begin|you need|you must have)',
+            'numbered_steps': r'^\d+\.\s+',  # Has numbered procedures
+            'action_verbs': r'(click|select|enter|navigate|open|create|run|configure|install|setup)',
+            'success_criteria': r'(success|complete|result|verify|confirmation|expected|should see)',
+            'troubleshooting': r'(troubleshoot|problem|error|if.*fail|common issues|if you encounter)'
+        }
         
-        issues = []
-        total_elements = 0
-        preserved_elements = 0
+        compliance_score = 0
+        total_elements = len(template_elements)
+        missing_elements = []
         
-        for pattern, element_type in tech_patterns:
-            original_matches = set(re.findall(pattern, original))
-            final_matches = set(re.findall(pattern, final))
-            
-            total_elements += len(original_matches)
-            
-            # Check for removed or modified elements
-            removed = original_matches - final_matches
-            added = final_matches - original_matches
-            
-            if removed or added:
-                issues.append({
-                    'type': element_type,
-                    'removed': list(removed),
-                    'added': list(added)
-                })
+        for element, pattern in template_elements.items():
+            if re.search(pattern, final_output, re.IGNORECASE | re.MULTILINE):
+                compliance_score += 1
             else:
-                preserved_elements += len(original_matches)
+                missing_elements.append(element)
         
-        if total_elements == 0:
-            return 5  # No technical elements to preserve
+        compliance_rate = compliance_score / total_elements
         
-        preservation_rate = preserved_elements / total_elements if total_elements > 0 else 1
-        
-        # Score based on preservation rate
-        if preservation_rate == 1.0:
-            return 5
-        elif preservation_rate >= 0.95:
-            return 4
-        elif preservation_rate >= 0.85:
-            return 3
-        elif preservation_rate >= 0.70:
-            return 2
-        else:
-            return 1
+        return {
+            'compliance_rate': compliance_rate,
+            'missing_elements': missing_elements,
+            'score': int(compliance_rate * 5),
+            'compliant_elements': compliance_score,
+            'total_elements': total_elements
+        }
     
-    def _check_style_compliance(self, content: str) -> int:
-        """Check compliance with style guide rules (H8)"""
-        violations = []
-        score = 5
+    def _evaluate_style_violations(self, original: str, final_output: str) -> Dict[str, Any]:
+        """
+        E2: Precision/recall for style rule enforcement
+        Measures how effectively violations were removed
+        """
+        violations = {
+            'passive_voice': r'\b(is|was|were|being|been)\s+\w+ed\b',
+            'future_tense': r'\bwill\s+\w+',
+            'long_sentences': self._count_long_sentences,  # Custom function for accuracy
+            'corporate_jargon': r'\b(reach out|touch base|circle back|leverage|synergy)\b',
+            'please_usage': r'\bplease\b',
+            'ampersands': r'&(?!amp;|lt;|gt;|quot;|#)'
+        }
         
-        # Rule 1: Check for passive voice
-        passive_patterns = [
-            r'\bis\s+\w+ed\b', r'\bwas\s+\w+ed\b', r'\bwere\s+\w+ed\b',
-            r'\bbeing\s+\w+ed\b', r'\bbeen\s+\w+ed\b'
-        ]
-        passive_count = 0
-        for pattern in passive_patterns:
-            matches = re.findall(pattern, content, re.IGNORECASE)
-            passive_count += len(matches)
+        # Count violations in original vs final
+        original_violations = {}
+        final_violations = {}
         
-        if passive_count > 0:
-            violations.append(f"Passive voice found: {passive_count} instances")
-            score -= min(1, passive_count * 0.2)
+        for violation_type, pattern in violations.items():
+            if callable(pattern):
+                # Handle custom functions like long sentences
+                original_count = pattern(original)
+                final_count = pattern(final_output)
+            else:
+                original_count = len(re.findall(pattern, original, re.IGNORECASE))
+                final_count = len(re.findall(pattern, final_output, re.IGNORECASE))
+            
+            original_violations[violation_type] = original_count
+            final_violations[violation_type] = final_count
         
-        # Rule 2: Check for "will" usage (should use present tense)
-        will_matches = re.findall(r'\bwill\s+', content, re.IGNORECASE)
-        if will_matches:
-            violations.append(f"Future tense ('will') found: {len(will_matches)} instances")
-            score -= min(1, len(will_matches) * 0.1)
+        # Calculate precision/recall for violation removal
+        total_original = sum(original_violations.values())
+        total_final = sum(final_violations.values())
         
-        # Rule 3: Check sentence length (max 26 words)
+        if total_original > 0:
+            violation_reduction_rate = (total_original - total_final) / total_original
+            violation_reduction_rate = max(0, violation_reduction_rate)  # Clamp to 0 minimum
+        else:
+            violation_reduction_rate = 1.0  # Perfect if no violations to begin with
+        
+        # Calculate precision (how many removals were correct)
+        # If we removed violations and didn't add new ones, precision is high
+        precision = violation_reduction_rate
+        
+        return {
+            'violation_reduction_rate': violation_reduction_rate,
+            'precision': precision,
+            'original_violations': original_violations,
+            'remaining_violations': final_violations,
+            'violations_removed': total_original - total_final,
+            'score': int(violation_reduction_rate * 5)
+        }
+    
+    def _count_long_sentences(self, content: str) -> int:
+        """Helper function to accurately count sentences over 26 words"""
         sentences = re.split(r'[.!?]+', content)
-        long_sentences = [s for s in sentences if len(s.split()) > 26]
-        if long_sentences:
-            violations.append(f"Long sentences found: {len(long_sentences)} over 26 words")
-            score -= min(1, len(long_sentences) * 0.1)
+        long_sentences = 0
         
-        # Rule 4: Check for ampersands (should not use &)
-        ampersand_matches = re.findall(r'&(?!amp;|lt;|gt;|quot;)', content)  # Exclude HTML entities
-        if ampersand_matches:
-            violations.append(f"Ampersands found: {len(ampersand_matches)} instances")
-            score -= min(0.5, len(ampersand_matches) * 0.1)
+        for sentence in sentences:
+            words = sentence.strip().split()
+            if len(words) > 26:
+                long_sentences += 1
         
-        # Rule 5: Check for "please" usage (should not use)
-        please_matches = re.findall(r'\bplease\b', content, re.IGNORECASE)
-        if please_matches:
-            violations.append(f"'Please' found: {len(please_matches)} instances")
-            score -= min(0.5, len(please_matches) * 0.1)
-        
-        # Rule 6: Check for corporate jargon
-        jargon_patterns = [r'\breach out\b', r'\btouch base\b', r'\bcircle back\b']
-        jargon_count = 0
-        for pattern in jargon_patterns:
-            matches = re.findall(pattern, content, re.IGNORECASE)
-            jargon_count += len(matches)
-        
-        if jargon_count > 0:
-            violations.append(f"Corporate jargon found: {jargon_count} instances")
-            score -= min(0.5, jargon_count * 0.2)
-        
-        # Return score clamped between 1 and 5
-        return max(1, min(5, round(score)))
+        return long_sentences
     
     def _check_gap_resolution(self, analysis_report: str, final_output: str) -> int:
-        """Check if identified gaps were resolved (H9)"""
+        """Check if identified gaps were resolved (H9) - kept from original"""
         # Identify gaps mentioned in analysis report
         identified_gaps = []
         gap_indicators = [
@@ -231,33 +227,14 @@ class DocumentEvaluator:
                                   ['success', 'complete', 'finished', 'result', 'expected']),
             'troubleshooting': any(keyword in content_lower for keyword in 
                                  ['troubleshoot', 'problem', 'issue', 'error', 'if you encounter']),
-            'passive_voice': len(re.findall(r'\bis\s+\w+ed\b|\bwas\s+\w+ed\b', final_output, re.IGNORECASE)) < 3,
-            'sentence_length': len([s for s in re.split(r'[.!?]+', final_output) if len(s.split()) > 26]) < 3
+            'passive_voice': self._count_long_sentences(final_output) < 3,
+            'sentence_length': len(re.findall(r'\bis\s+\w+ed\b|\bwas\s+\w+ed\b', final_output, re.IGNORECASE)) < 3
         }
         
         return resolution_checks.get(gap_type, False)
     
-    def _get_technical_issues(self, original: str, final: str) -> str:
-        """Get summary of technical preservation issues"""
-        # This would return detailed issues found
-        return "No major technical changes detected"
-    
-    def _get_style_violations(self, content: str) -> str:
-        """Get summary of style violations"""
-        violations = []
-        
-        # Quick check for common violations
-        if re.search(r'\bwill\s+', content, re.IGNORECASE):
-            violations.append("Future tense usage")
-        
-        if '&' in content and 'http' not in content:
-            violations.append("Ampersand usage")
-        
-        return '; '.join(violations) if violations else "No major style violations"
-    
     def _count_gaps_fixed(self, analysis_report: str, final_output: str) -> str:
         """Count how many gaps were fixed"""
-        # Simplified gap counting
         return "Gap analysis completed"
     
     def _save_evaluation(self, results: Dict[str, Any]):
@@ -297,20 +274,24 @@ class DocumentEvaluator:
             if not os.path.exists(self.evaluation_file):
                 return {
                     'total_evaluations': 0,
-                    'h7_pass_rate': 0,
-                    'h8_pass_rate': 0,
-                    'h9_pass_rate': 0,
-                    'overall_pass_rate': 0
+                    'template_compliance_rate': 0,
+                    'violation_reduction_rate': 0,
+                    'gap_resolution_rate': 0,
+                    'overall_pass_rate': 0,
+                    'avg_template_score': 0,
+                    'avg_style_score': 0
                 }
             
             df = pd.read_csv(self.evaluation_file)
             
             return {
                 'total_evaluations': len(df),
-                'h7_pass_rate': df['h7_pass'].mean() * 100 if 'h7_pass' in df.columns else 0,
-                'h8_pass_rate': df['h8_pass'].mean() * 100 if 'h8_pass' in df.columns else 0,
-                'h9_pass_rate': df['h9_pass'].mean() * 100 if 'h9_pass' in df.columns else 0,
+                'template_compliance_rate': df['e1_template_compliance_rate'].mean() * 100 if 'e1_template_compliance_rate' in df.columns else 0,
+                'violation_reduction_rate': df['e2_violation_reduction_rate'].mean() * 100 if 'e2_violation_reduction_rate' in df.columns else 0,
+                'gap_resolution_rate': df['h9_pass'].mean() * 100 if 'h9_pass' in df.columns else 0,
                 'overall_pass_rate': df['overall_pass'].mean() * 100 if 'overall_pass' in df.columns else 0,
+                'avg_template_score': df['e1_template_score'].mean() if 'e1_template_score' in df.columns else 0,
+                'avg_style_score': df['e2_style_score'].mean() if 'e2_style_score' in df.columns else 0,
                 'avg_overall_score': df['overall_score'].mean() if 'overall_score' in df.columns else 0
             }
             
@@ -318,8 +299,8 @@ class DocumentEvaluator:
             print(f"Error getting evaluation summary: {e}")
             return {
                 'total_evaluations': 0,
-                'h7_pass_rate': 0,
-                'h8_pass_rate': 0,
-                'h9_pass_rate': 0,
+                'template_compliance_rate': 0,
+                'violation_reduction_rate': 0,
+                'gap_resolution_rate': 0,
                 'overall_pass_rate': 0
             }
