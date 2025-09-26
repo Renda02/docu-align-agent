@@ -24,8 +24,8 @@ from components.evaluation.dashboard import render_evaluation_section
 # --- Page Configuration and CSS ---
 st.set_page_config(
     page_title="Docu-Align — AI-powered Documentation",
-    page_icon="📝",
-    layout="centered"
+    page_icon="📝"
+    # Removed layout="centered" to show default Streamlit header
 )
 
 # Initialize session state for page navigation
@@ -47,12 +47,34 @@ textarea:disabled {
 .st-expander div[data-testid="stText"] {
     color: #333 !important; /* Forces text to be a dark gray */
 }
+/* FORCE STREAMLIT HEADER AND DEPLOY BUTTON VISIBILITY */
+header[data-testid="stHeader"] {
+    display: block !important;
+    visibility: visible !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999999 !important;
+    background: white !important;
+    height: auto !important;
+}
+/* Ensure deploy button container is visible */
+div[data-testid="stToolbar"] {
+    display: flex !important;
+    visibility: visible !important;
+    z-index: 999999 !important;
+}
+/* Force deploy button visibility */
+button[title*="Deploy"], button[aria-label*="Deploy"] {
+    display: block !important;
+    visibility: visible !important;
+    z-index: 999999 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# --- Navigation Header ---
+# --- Navigation Header (Updated to non-fixed) ---
 st.markdown("""
-<div class="nav-header">
+<div class="nav-header-static">
     <div class="nav-container">
         <div class="nav-brand">
             <span class="nav-logo">📝</span>
@@ -62,7 +84,6 @@ st.markdown("""
             <a href="#features" class="nav-link">Features</a>
             <a href="#pricing" class="nav-link">Pricing</a>
             <a href="#docs" class="nav-link">Docs</a>
-            <a href="#signin" class="nav-link nav-signin">Sign In</a>
         </div>
     </div>
 </div>
