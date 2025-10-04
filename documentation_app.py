@@ -1,3 +1,10 @@
+"""
+Enhanced Documentation App with Track Changes Support
+- Two-agent pipeline: Document Analyzer → Style Enforcer
+- Safe evaluation handling with fallback for missing keys
+- 4-tab results: Structure Analysis, Track Changes, Final Draft, Quality Report
+"""
+
 import streamlit as st
 import os
 from dotenv import load_dotenv
@@ -5,6 +12,7 @@ import asyncio
 from xml.etree import ElementTree as ET
 from datetime import datetime
 import json
+import re
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -21,11 +29,67 @@ from components.enforcer import style_enforcer
 from components.evaluation.evaluator import DocumentEvaluator
 from components.evaluation.dashboard import render_evaluation_section
 
+# --- Helper Functions ---
+def parse_analyzer_output(output: str) -> dict:
+    """
+    Parse the three sections from Document Analyzer output:
+    - Structure Analysis
+    - Redlined Version
+    - Clean Draft
+    """
+    sections = {
+        'structure_analysis': '',
+        'redlined_version': '',
+        'clean_draft': ''
+    }
+    
+    # Extract Structure Analysis section
+    analysis_match = re.search(
+        r'## 📊 STRUCTURE ANALYSIS.*?(?=## 🔴 REDLINED VERSION|$)', 
+        output, 
+        re.DOTALL
+    )
+    if analysis_match:
+        sections['structure_analysis'] = analysis_match.group(0).strip()
+    
+    # Extract Redlined Version section
+    redline_match = re.search(
+        r'## 🔴 REDLINED VERSION.*?(?=## ✨ CLEAN DRAFT|$)', 
+        output, 
+        re.DOTALL
+    )
+    if redline_match:
+        sections['redlined_version'] = redline_match.group(0).strip()
+    
+    # Extract Clean Draft section
+    draft_match = re.search(
+        r'## ✨ CLEAN DRAFT.*?(?=$)', 
+        output, 
+        re.DOTALL
+    )
+    if draft_match:
+        # Remove the header and handoff note
+        draft_text = draft_match.group(0).strip()
+        # Remove "HANDOFF NOTE FOR STYLE ENFORCER" section
+        draft_text = re.sub(r'\*\*HANDOFF NOTE.*?---', '', draft_text, flags=re.DOTALL)
+        sections['clean_draft'] = draft_text.strip()
+    
+    return sections
+
+
+def extract_clean_content(text: str) -> str:
+    """Remove XML tags if present"""
+    try:
+        root = ET.fromstring(text)
+        return root.text.strip()
+    except ET.ParseError:
+        return text
+
+
 # --- Page Configuration and CSS ---
 st.set_page_config(
-    page_title="Docu-Align — AI-powered Documentation",
+    page_title="DocuAlign — AI-powered Documentation",
     page_icon="📝"
-    # Removed layout="centered" to show default Streamlit header
 )
 
 # Initialize session state for page navigation
@@ -34,18 +98,17 @@ if "page" not in st.session_state:
 
 # Inject custom CSS
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-# Inject CSS to override default text area color and fix content preview color
 st.markdown("""
 <style>
 /* Target the text within disabled text areas to make it black */
 textarea:disabled {
     -webkit-text-fill-color: black;
     color: black;
-    opacity: 1; /* Ensure full opacity */
+    opacity: 1;
 }
 /* New rule to ensure readability in the content preview section */
 .st-expander div[data-testid="stText"] {
-    color: #333 !important; /* Forces text to be a dark gray */
+    color: #333 !important;
 }
 /* FORCE STREAMLIT HEADER AND DEPLOY BUTTON VISIBILITY */
 header[data-testid="stHeader"] {
@@ -57,22 +120,30 @@ header[data-testid="stHeader"] {
     background: white !important;
     height: auto !important;
 }
-/* Ensure deploy button container is visible */
-div[data-testid="stToolbar"] {
-    display: flex !important;
-    visibility: visible !important;
-    z-index: 999999 !important;
+/* Redline styling for track changes */
+.redline-insert {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 2px 4px;
+    border-radius: 3px;
 }
-/* Force deploy button visibility */
-button[title*="Deploy"], button[aria-label*="Deploy"] {
-    display: block !important;
-    visibility: visible !important;
-    z-index: 999999 !important;
+.redline-delete {
+    background-color: #f8d7da;
+    color: #721c24;
+    text-decoration: line-through;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.redline-modify {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 2px 4px;
+    border-radius: 3px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Navigation Header (Updated to non-fixed) ---
+# --- Navigation Header ---
 st.markdown("""
 <div class="nav-header-static">
     <div class="nav-container">
@@ -84,7 +155,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Agent Initialization ---
-# Check for the API key in the environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 if not openai_api_key:
@@ -114,16 +184,16 @@ try:
         st.sidebar.metric("Overall Pass Rate", f"{summary['overall_pass_rate']:.1f}%")
         st.sidebar.metric("Technical Accuracy", f"{summary['h7_pass_rate']:.1f}%")
 except Exception as e:
-    pass  # Silently handle any evaluation loading errors
+    pass
 
 # --- Page Routing ---
 if st.session_state.get("page") == "evaluations":
     render_evaluation_section()
-    st.stop()  # Don't render the rest of the main app
+    st.stop()
 
 # --- Main Application Layout ---
 
-# Modern headline with highlighted text
+# Modern headline
 st.markdown(
     '<div class="headline">Transform your <span class="highlight">how-to guides</span> with our AI-powered documentation system</div>',
     unsafe_allow_html=True
@@ -131,7 +201,7 @@ st.markdown(
 
 # Descriptive subtext
 st.markdown(
-    '<div class="subtext">Upload your draft how-to content and watch as our AI improves it into a structured, how-to guide following The Good Docs Project template standards.</div>',
+    '<div class="subtext">Upload your draft how-to content and watch as our AI improves it into a structured, how-to guide following The Good Docs Project template standards and Microsoft style guide.</div>',
     unsafe_allow_html=True
 )
 
@@ -140,7 +210,6 @@ st.divider()
 # --- Upload Section ---
 st.markdown("## 📄 Upload Your Document")
 
-# File uploader
 uploaded_file = st.file_uploader(
     "Drop your document here",
     type=["txt", "md", "docx", "pdf"],
@@ -183,10 +252,12 @@ if content:
     st.markdown('<div class="analyze-button">', unsafe_allow_html=True)
     if st.button("⚡ Analyze & Improve How-to Guide", type="primary"):
         # Clear previous results
-        for key in ["analysis_report", "final_document", "success", "original_word_count", "evaluation_results"]:
+        for key in ["structure_analysis", "redlined_version", "clean_draft", "final_document", 
+                    "success", "original_word_count", "evaluation_results"]:
             st.session_state.pop(key, None)
         
         st.session_state["original_word_count"] = len(content.split())
+        st.session_state["original_content"] = content
         
         # Initialize evaluator
         evaluator = DocumentEvaluator()
@@ -203,68 +274,67 @@ if content:
         # Processing phases
         with st.spinner("🤖 AI agents are analyzing your document..."):
             try:
-                # Phase 1: Document Analysis
-                st.info("📊 **Phase 1:** Analyzing document structure and content...")
+                # Phase 1: Document Analysis (Structure + Redline + Clean Draft)
+                st.info("📊 **Phase 1:** Analyzing document structure and generating tracked changes...")
                 
                 loop = asyncio.new_event_loop()
                 analysis_result = loop.run_until_complete(runner.run(document_analyzer, content))
                 loop.close()
-                st.session_state["analysis_report"] = analysis_result.final_output
                 
-                st.success("✅ Document analysis completed!")
-
-                # Phase 2: Style Enforcement
-                st.info("✨ **Phase 2:** Applying style improvements...")
+                # Parse the three-part output
+                parsed_output = parse_analyzer_output(analysis_result.final_output)
                 
-                handoff_prompt = f"""
-                <document_metadata>
-                Title: {doc_metadata['title']}
-                Type: {doc_metadata['type']}
-                Word Count: {doc_metadata['length']}
-                </document_metadata>
-
-                <original_content>
-                {content}
-                </original_content>
-
-                <analysis_report>
-                {st.session_state["analysis_report"]}
-                </analysis_report>
+                st.session_state["structure_analysis"] = parsed_output['structure_analysis']
+                st.session_state["redlined_version"] = parsed_output['redlined_version']
+                st.session_state["clean_draft"] = parsed_output['clean_draft']
                 
-                Please note: The final document should be a professional how-to guide and must not include any sections related to the "Content Assessment" or "Template Compliance," as this information is already present in the analysis report. Focus solely on producing the polished how-to guide content.
-                """
+                st.success("✅ Document analysis completed with tracked changes!")
+
+                # Phase 2: Style Enforcement (Takes only clean draft)
+                st.info("✨ **Phase 2:** Applying Microsoft style guide...")
                 
                 loop = asyncio.new_event_loop()
-                enforced_result = loop.run_until_complete(runner.run(style_enforcer, handoff_prompt))
-                loop.close()
-                
-                # --- FIX: Extract content from XML tags ---
-                try:
-                    root = ET.fromstring(enforced_result.final_output)
-                    st.session_state["final_document"] = root.text.strip()
-                except ET.ParseError:
-                    st.session_state["final_document"] = enforced_result.final_output
-
-                st.success("✅ Style enforcement completed!")
-                
-                # Phase 3: Quality Evaluation (NEW!)
-                st.info("📊 **Phase 3:** Running quality evaluation...")
-                
-                loop = asyncio.new_event_loop()
-                evaluation_results = loop.run_until_complete(
-                    evaluator.evaluate_output(
-                        original_content=content,
-                        analysis_report=st.session_state["analysis_report"],
-                        final_output=st.session_state["final_document"],
-                        user_id=st.session_state.get("user_id", "anonymous")
-                    )
+                enforced_result = loop.run_until_complete(
+                    runner.run(style_enforcer, st.session_state["clean_draft"])
                 )
                 loop.close()
                 
-                st.session_state["evaluation_results"] = evaluation_results
-                st.session_state["success"] = True
+                # Extract clean content from XML if present
+                st.session_state["final_document"] = extract_clean_content(enforced_result.final_output)
                 
-                st.success("✅ Quality evaluation completed!")
+                st.success("✅ Style enforcement completed!")
+                
+                # Phase 3: Quality Evaluation
+                st.info("📊 **Phase 3:** Running quality evaluation...")
+                
+                try:
+                    loop = asyncio.new_event_loop()
+                    evaluation_results = loop.run_until_complete(
+                        evaluator.evaluate_output(
+                            original_content=content,
+                            analysis_report=st.session_state["structure_analysis"],
+                            final_output=st.session_state["final_document"],
+                            user_id=st.session_state.get("user_id", "anonymous")
+                        )
+                    )
+                    loop.close()
+                    
+                    st.session_state["evaluation_results"] = evaluation_results
+                    st.success("✅ Quality evaluation completed!")
+                    
+                except Exception as eval_error:
+                    st.warning(f"⚠️ Quality evaluation encountered an issue: {str(eval_error)}")
+                    st.info("💡 The document was processed successfully. Evaluation metrics are optional.")
+                    
+                    # Create minimal evaluation results for display
+                    st.session_state["evaluation_results"] = {
+                        'evaluation_status': 'incomplete',
+                        'error_message': str(eval_error),
+                        'original_word_count': len(content.split()),
+                        'final_word_count': len(st.session_state["final_document"].split())
+                    }
+                
+                st.session_state["success"] = True
                 st.balloons()
 
             except Exception as e:
@@ -280,62 +350,85 @@ if st.session_state.get("final_document"):
     st.markdown("## 📋 Analysis Results")
     
     # Create tabs for organized results
-    tab1, tab2 = st.tabs(["📊 Analysis Report", "📝 Preview the draft "])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Structure Analysis", 
+        "🔴 Track Changes", 
+        "📝 Final Draft",
+        "📈 Quality Report"
+    ])
     
     with tab1:
+        st.markdown("### 📊 Good Docs Template Compliance")
+        st.markdown(st.session_state["structure_analysis"])
         
-        # Analysis report in an expandable text area
-        st.text_area(
-            "Analysis Report",
-            value=st.session_state["analysis_report"],
-            height=300,
-            disabled=True,
-            help="This report shows the AI's analysis of your how-to guide structure, step clarity, and template compliance"
-        )
+        st.divider()
         
         # Key insights
         st.markdown("#### 💡 Quick Insights")
-        analysis_text = st.session_state["analysis_report"].lower()
-        if "missing" in analysis_text or "unclear" in analysis_text:
-            st.warning("⚠️ The doc has unclear steps or missing template sections")
-        if "improvement" in analysis_text or "better" in analysis_text:
-            st.info("💡 We found opportunities to improve step clarity and structure")
-        if "good" in analysis_text or "clear" in analysis_text:
-            st.success("✅ The doc shows good task-oriented structure")
-            
-        st.divider()
+        analysis_text = st.session_state["structure_analysis"].lower()
         
-        # Guide Statistics and Writing Tips
-        st.markdown("### 📈 Guide Statistics")
+        issues_found = []
+        if "❌" in st.session_state["structure_analysis"]:
+            issues_found.append("Missing template sections")
+        if "⚠️" in st.session_state["structure_analysis"]:
+            issues_found.append("Sections need improvement")
+        
+        if issues_found:
+            st.warning(f"⚠️ Found: {', '.join(issues_found)}")
+        
+        if "✅" in st.session_state["structure_analysis"]:
+            st.success("✅ Some sections already follow Good Docs standards")
+        
+        # Guide Statistics
+        st.divider()
+        st.markdown("### 📈 Document Statistics")
         original_words = st.session_state["original_word_count"]
         improved_words = len(st.session_state["final_document"].split())
-        st.info(f"""
-        **Statistics:**
-        📝 Original: {original_words} words
-        ✨ Improved: {improved_words} words
-        📊 Change: {improved_words - original_words:+d} words
-        """)
         
-        st.markdown("### 💡 Tech 101 writing tips")
-        st.info("""
-        **Tips:**
-        • Use active voice over passive
-        • Write in present tense
-        • Keep sentences under 26 words
-        • Be specific with UI elements
-        • Remove filler words
-        • Use consistent terminology
-        """)
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Original", f"{original_words} words")
+        with col2:
+            st.metric("Final", f"{improved_words} words")
+        with col3:
+            change = improved_words - original_words
+            st.metric("Change", f"{change:+d} words", delta=f"{(change/original_words*100):+.1f}%")
 
     with tab2:
-        st.markdown("### 📝 Your draft is ready")
+        st.markdown("### 🔴 Tracked Changes (Redline View)")
+        st.markdown("""
+        This view shows all changes made to your document:
+        - **[INSERT: text]** - New content added
+        - ~~Strikethrough~~ - Content removed
+        - 🔄 Modified - Content changed
+        """)
+        
+        st.markdown("---")
+        
+        # Display redlined version
+        st.markdown(st.session_state["redlined_version"])
+        
+        # Download redlined version
+        st.download_button(
+            label="⬇️ Download Redlined Version",
+            data=st.session_state["redlined_version"],
+            file_name="redlined_document.md",
+            mime="text/markdown",
+            help="Download the tracked changes version for review"
+        )
+
+    with tab3:
+        st.markdown("### 📝 Your Publication-Ready Draft")
+        st.markdown("**Formatted according to:**")
+        st.markdown("✅ Good Docs Project how-to template")
+        st.markdown("✅ Microsoft Style Guide")
         
         # Improved document display
         st.text_area(
             "Final How-to Guide",
             value=st.session_state["final_document"],
             height=400,
-            help="Your how-to guide now follows The Good Docs Project template with clear steps, prerequisites, and troubleshooting"
+            help="Your how-to guide now follows The Good Docs Project template with Microsoft style guide applied"
         )
         
         # Download options
@@ -345,156 +438,211 @@ if st.session_state.get("final_document"):
             st.download_button(
                 label="⬇️ Download as Markdown",
                 data=st.session_state["final_document"],
-                file_name="Draft",
+                file_name="howto_guide_final.md",
                 mime="text/markdown",
                 help="Download as Markdown"
             )
         
         with col2:
-            # Alternative format download
             st.download_button(
                 label="📄 Download as TXT",
                 data=st.session_state["final_document"],
-                file_name="how_to_guide.txt",
+                file_name="howto_guide_final.txt",
                 mime="text/plain",
-                help="Download your how-to guide as a plain text file"
+                help="Download as plain text file"
             )
-
-    # --- Quality Assessment Section (NEW!) ---
-    if st.session_state.get("evaluation_results"):
-        st.divider()
-        st.markdown("## 📊 Quality Assessment")
         
-        evaluation_results = st.session_state["evaluation_results"]
-        
-        # Overall quality indicator
-        critical_pass = evaluation_results['h7_pass'] and evaluation_results['h8_pass'] and evaluation_results['h9_pass']
-        
-        if critical_pass:
-            st.success("🎉 **High Quality Output** - All critical evaluation criteria passed!")
-        else:
-            st.warning("⚠️ **Review Recommended** - Some quality criteria need attention.")
-        
-        # Quality metrics in columns
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            h7_status = "✅ PASS" if evaluation_results['h7_pass'] else "❌ FAIL"
-            st.metric(
-                "Technical Accuracy (H7)", 
-                h7_status, 
-                f"Score: {evaluation_results['h7_accuracy_score']}/5"
-            )
-            if not evaluation_results['h7_pass']:
-                st.caption("⚠️ CRITICAL: Technical elements may have been altered")
-        
-        with col2:
-            h8_status = "✅ PASS" if evaluation_results['h8_pass'] else "❌ FAIL"
-            st.metric(
-                "Style Compliance (H8)", 
-                h8_status, 
-                f"Score: {evaluation_results['h8_style_score']}/5"
-            )
-            if not evaluation_results['h8_pass']:
-                st.caption("⚠️ CRITICAL: Style guide rules not followed")
-        
-        with col3:
-            h9_status = "✅ PASS" if evaluation_results['h9_pass'] else "❌ FAIL"
-            st.metric(
-                "Gap Resolution (H9)", 
-                h9_status, 
-                f"Score: {evaluation_results['h9_gap_resolution_score']}/5"
-            )
-            if not evaluation_results['h9_pass']:
-                st.caption("⚠️ CRITICAL: Identified issues not properly resolved")
-        
-        # Detailed evaluation results
-        with st.expander("🔍 Detailed Quality Analysis", expanded=False):
+        # Side-by-side comparison
+        with st.expander("🔄 Compare Original vs Final", expanded=False):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("**📊 Quality Metrics**")
-                st.write(f"• Overall Quality Score: {evaluation_results['overall_score']:.1f}/5.0")
-                st.write(f"• Word Count Change: {evaluation_results['final_word_count'] - evaluation_results['original_word_count']:+d} words")
+                st.markdown("**Original Document**")
+                st.text_area(
+                    "Original",
+                    value=st.session_state["original_content"],
+                    height=300,
+                    disabled=True,
+                    label_visibility="collapsed"
+                )
             
             with col2:
-                st.markdown("**🔍 Issue Summary**")
-                st.write(f"• Technical Issues: {evaluation_results.get('h7_issues', 'None detected')}")
-                st.write(f"• Style Violations: {evaluation_results.get('h8_violations', 'None detected')}")
-                st.write(f"• Gap Resolution: {evaluation_results.get('h9_gaps_fixed', 'Completed')}")
-        
-        # User feedback collection
-        with st.expander("💬 Provide Feedback (Optional)", expanded=False):
-            st.markdown("Help us improve DocuAlign by rating this output:")
+                st.markdown("**Final Document**")
+                st.text_area(
+                    "Final",
+                    value=st.session_state["final_document"],
+                    height=300,
+                    disabled=True,
+                    label_visibility="collapsed"
+                )
+
+    with tab4:
+        if st.session_state.get("evaluation_results"):
+            st.markdown("### 📊 Quality Assessment Results")
             
-            col1, col2 = st.columns([2, 3])
+            evaluation_results = st.session_state["evaluation_results"]
+            
+            # Safe key access with defaults
+            h7_pass = evaluation_results.get('h7_pass', None)
+            h8_pass = evaluation_results.get('h8_pass', None)
+            h9_pass = evaluation_results.get('h9_pass', None)
+            
+            # Check if evaluation data is complete
+            if h7_pass is None or h8_pass is None or h9_pass is None:
+                st.warning("⚠️ **Evaluation data incomplete** - Some quality metrics are not available.")
+                st.info("💡 This may happen if the evaluator encountered an error. The document was still processed successfully.")
+                
+                # Show available evaluation data
+                with st.expander("🔍 Available Evaluation Data", expanded=True):
+                    st.json(evaluation_results)
+            else:
+                # Overall quality indicator
+                critical_pass = h7_pass and h8_pass and h9_pass
+                
+                if critical_pass:
+                    st.success("🎉 **High Quality Output** - All critical evaluation criteria passed!")
+                else:
+                    st.warning("⚠️ **Review Recommended** - Some quality criteria need attention.")
+                
+                # Quality metrics in columns
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    h7_status = "✅ PASS" if h7_pass else "❌ FAIL"
+                    h7_score = evaluation_results.get('h7_accuracy_score', 'N/A')
+                    st.metric(
+                        "Technical Accuracy (H7)", 
+                        h7_status, 
+                        f"Score: {h7_score}/5" if h7_score != 'N/A' else "Score: N/A"
+                    )
+                    if not h7_pass:
+                        st.caption("⚠️ CRITICAL: Technical elements may have been altered")
+                
+                with col2:
+                    h8_status = "✅ PASS" if h8_pass else "❌ FAIL"
+                    h8_score = evaluation_results.get('h8_style_score', 'N/A')
+                    st.metric(
+                        "Style Compliance (H8)", 
+                        h8_status, 
+                        f"Score: {h8_score}/5" if h8_score != 'N/A' else "Score: N/A"
+                    )
+                    if not h8_pass:
+                        st.caption("⚠️ CRITICAL: Style guide rules not followed")
+                
+                with col3:
+                    h9_status = "✅ PASS" if h9_pass else "❌ FAIL"
+                    h9_score = evaluation_results.get('h9_gap_resolution_score', 'N/A')
+                    st.metric(
+                        "Gap Resolution (H9)", 
+                        h9_status, 
+                        f"Score: {h9_score}/5" if h9_score != 'N/A' else "Score: N/A"
+                    )
+                    if not h9_pass:
+                        st.caption("⚠️ CRITICAL: Identified issues not properly resolved")
+                
+                # Detailed evaluation results
+                with st.expander("🔍 Detailed Quality Analysis", expanded=False):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("**📊 Quality Metrics**")
+                        overall_score = evaluation_results.get('overall_score', 'N/A')
+                        st.write(f"• Overall Quality Score: {overall_score:.1f}/5.0" if overall_score != 'N/A' else "• Overall Quality Score: N/A")
+                        
+                        original_wc = evaluation_results.get('original_word_count', 0)
+                        final_wc = evaluation_results.get('final_word_count', 0)
+                        if original_wc > 0 and final_wc > 0:
+                            st.write(f"• Word Count Change: {final_wc - original_wc:+d} words")
+                    
+                    with col2:
+                        st.markdown("**🔍 Issue Summary**")
+                        st.write(f"• Technical Issues: {evaluation_results.get('h7_issues', 'None detected')}")
+                        st.write(f"• Style Violations: {evaluation_results.get('h8_violations', 'None detected')}")
+                        st.write(f"• Gap Resolution: {evaluation_results.get('h9_gaps_fixed', 'Completed')}")
+            
+            # User feedback collection (always show)
+            with st.expander("💬 Provide Feedback (Optional)", expanded=False):
+                st.markdown("Help us improve DocuAlign by rating this output:")
+                
+                col1, col2 = st.columns([2, 3])
+                
+                with col1:
+                    user_rating = st.select_slider(
+                        "How would you rate the overall output quality?",
+                        options=[1, 2, 3, 4, 5],
+                        value=4,
+                        help="1=Poor, 2=Below Average, 3=Average, 4=Good, 5=Excellent"
+                    )
+                
+                with col2:
+                    user_feedback = st.text_area(
+                        "Additional comments (optional):",
+                        placeholder="What worked well? What could be improved?",
+                        height=80
+                    )
+                
+                if st.button("📝 Submit Feedback"):
+                    st.success("🙏 Thank you for your feedback! This helps us improve DocuAlign.")
+            
+            # Export evaluation data (always show)
+            st.markdown("---")
+            col1, col2 = st.columns(2)
             
             with col1:
-                user_rating = st.select_slider(
-                    "How would you rate the overall output quality?",
-                    options=[1, 2, 3, 4, 5],
-                    value=4,
-                    help="1=Poor, 2=Below Average, 3=Average, 4=Good, 5=Excellent"
-                )
+                if st.button("📊 View Quality Dashboard", use_container_width=True):
+                    st.session_state["page"] = "evaluations"
+                    st.rerun()
             
             with col2:
-                user_feedback = st.text_area(
-                    "Additional comments (optional):",
-                    placeholder="What worked well? What could be improved?",
-                    height=80
-                )
-            
-            if st.button("📝 Submit Feedback"):
-                # Here you could save the feedback to your evaluation system
-                st.success("🙏 Thank you for your feedback! This helps us improve DocuAlign.")
-                
-        # Quick access to evaluation dashboard
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("📊 View Quality Dashboard", use_container_width=True):
-                st.session_state["page"] = "evaluations"
-                st.rerun()
-        
-        with col2:
-            if st.button("📥 Export Evaluation Data", use_container_width=True):
-                # Create a simple evaluation export
+                # Safe extraction for export
                 eval_data = {
                     'document_evaluation': evaluation_results,
                     'timestamp': datetime.now().isoformat(),
                     'quality_summary': {
-                        'technical_accuracy': evaluation_results['h7_pass'],
-                        'style_compliance': evaluation_results['h8_pass'],
-                        'gap_resolution': evaluation_results['h9_pass'],
-                        'overall_quality': evaluation_results['overall_pass']
+                        'technical_accuracy': evaluation_results.get('h7_pass', None),
+                        'style_compliance': evaluation_results.get('h8_pass', None),
+                        'gap_resolution': evaluation_results.get('h9_pass', None),
+                        'overall_quality': evaluation_results.get('overall_pass', None)
                     }
                 }
                 
                 st.download_button(
-                    label="Download Evaluation JSON",
+                    label="📥 Export Evaluation Data",
                     data=json.dumps(eval_data, indent=2),
                     file_name=f"docualign_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                    mime="application/json"
+                    mime="application/json",
+                    use_container_width=True
                 )
+        else:
+            # No evaluation results available
+            st.info("📊 Quality evaluation will appear here after document processing.")
 
     # Action buttons
     st.divider()
-    if st.button("🔄 Analyze Another Document", use_container_width=True):
-        # Clear all session state
-        for key in list(st.session_state.keys()):
-            if key in ["analysis_report", "final_document", "success", "original_word_count", "evaluation_results"]:
-                del st.session_state[key]
-        st.rerun()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔄 Analyze Another Document", use_container_width=True):
+            # Clear all session state
+            for key in list(st.session_state.keys()):
+                if key in ["structure_analysis", "redlined_version", "clean_draft", "final_document", 
+                          "success", "original_word_count", "evaluation_results", "original_content"]:
+                    del st.session_state[key]
+            st.rerun()
+    
+    with col2:
+        if st.button("📤 Share Results", use_container_width=True):
+            st.info("💡 Download the files above and share them with your team!")
 
 
 # --- Footer Information ---
 st.divider()
 
-# Footer
 st.markdown("""
 <div style='text-align: center; color: #6b7280; margin-top: 2rem; padding: 1rem; border-top: 1px solid #e5e7eb;'>
     <p>🤖 Powered by OpenAI • Built with Streamlit • Using The Good Docs Project Template Standards</p>
     <p style='font-size: 0.8rem; margin-top: 0.5rem;'>📊 Quality evaluation powered by HHH Framework (Helpful, Honest, Harmless)</p>
+    <p style='font-size: 0.8rem; margin-top: 0.5rem;'>✨ Style enforcement powered by Microsoft Style Guide</p>
 </div>
 """, unsafe_allow_html=True)
