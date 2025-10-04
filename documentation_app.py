@@ -3,6 +3,7 @@ Enhanced Documentation App with Track Changes Support
 - Two-agent pipeline: Document Analyzer → Style Enforcer
 - Safe evaluation handling with fallback for missing keys
 - 4-tab results: Structure Analysis, Track Changes, Final Draft, Quality Report
+- Good Docs Project validation with soft rejection
 """
 
 import streamlit as st
@@ -45,7 +46,7 @@ def parse_analyzer_output(output: str) -> dict:
     
     # Extract Structure Analysis section
     analysis_match = re.search(
-        r'## 📊 STRUCTURE ANALYSIS.*?(?=## 🔴 REDLINED VERSION|$)', 
+        r'## 📊 Structure Analysis.*?(?=## 🔴 REDLINED VERSION|$)', 
         output, 
         re.DOTALL
     )
@@ -218,6 +219,57 @@ uploaded_file = st.file_uploader(
 
 st.divider()
 
+# Add helpful guidance BEFORE text input
+with st.expander("ℹ️ How-to Guide Requirements (Good Docs Project)", expanded=False):
+    st.markdown("""
+    Your document will be validated against **Good Docs Project how-to template** standards.
+    
+    **✅ Your document must include:**
+    
+    | Requirement | Description | Example |
+    |-------------|-------------|---------|
+    | **Numbered Steps** | Sequential steps (1, 2, 3...) | `1. Click Install` |
+    | **Action Verbs** | Steps start with verbs | `Open, Enter, Select, Configure` |
+    | **Single Task** | One specific goal | "Install Database" not "Learn Databases" |
+    | **Prerequisites** | What's needed before starting | Software, access, skills required |
+    | **Clear Outcome** | What users achieve | "Database installed and running" |
+    
+    **❌ Not a how-to guide:**
+    - **Concept** - Explains "what" or "why" (e.g., "What is an API?")
+    - **Tutorial** - Learning-focused with theory and exercises
+    - **Reference** - Technical specs and parameters
+    - **Multiple methods** - Shows several ways to do the same thing
+    
+    **💡 Quick How-to Template:**
+    ```markdown
+    # Install PostgreSQL Database
+    
+    ## Overview
+    This guide shows you how to install PostgreSQL on Ubuntu.
+    
+    ## Before you start
+    - Ubuntu 20.04 or later
+    - sudo privileges
+    - 15 minutes to complete
+    
+    ## Steps
+    1. Update package list: 
+       sudo apt update
+       
+    2. Install PostgreSQL:
+       sudo apt install postgresql
+       
+    3. Verify installation:
+       psql --version
+       
+       You should see: PostgreSQL 14.x
+    
+    ## See also
+    - Configuration guide
+    - Troubleshooting common issues
+    ```
+    """)
+
 # Alternative text input
 st.markdown("### ✏️ Or paste your content directly")
 
@@ -253,7 +305,7 @@ if content:
     if st.button("⚡ Analyze & Improve How-to Guide", type="primary"):
         # Clear previous results
         for key in ["structure_analysis", "redlined_version", "clean_draft", "final_document", 
-                    "success", "original_word_count", "evaluation_results"]:
+                    "success", "original_word_count", "evaluation_results", "type_mismatch"]:
             st.session_state.pop(key, None)
         
         st.session_state["original_word_count"] = len(content.split())
@@ -271,15 +323,78 @@ if content:
             'length': st.session_state["original_word_count"]
         }
         
-        # Processing phases
-        with st.spinner("🤖 AI agents are analyzing your document..."):
+        # CONSOLIDATED PROGRESS BLOCK
+        progress_container = st.container()
+        
+        with progress_container:
+            # Single progress placeholder that we'll update
+            progress_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
             try:
-                # Phase 1: Document Analysis (Structure + Redline + Clean Draft)
-                st.info("📊 **Phase 1:** Analyzing document structure and generating tracked changes...")
+                # Phase 1: Document Analysis with Type Validation
+                progress_placeholder.info("📊 **Phase 1 of 3:** Validating document type and analyzing structure...")
                 
                 loop = asyncio.new_event_loop()
                 analysis_result = loop.run_until_complete(runner.run(document_analyzer, content))
                 loop.close()
+                
+                # ============================================
+                # CHECK FOR SOFT REJECTION FIRST
+                # ============================================
+                if "⚠️ DOCUMENT TYPE MISMATCH" in analysis_result.final_output:
+                    # Document failed validation - show soft rejection
+                    progress_placeholder.empty()
+                    status_placeholder.empty()
+                    
+                    st.session_state["type_mismatch"] = True
+                    st.session_state["rejection_message"] = analysis_result.final_output
+                    st.session_state["success"] = False
+                    
+                    # Display rejection message
+                    st.error("### ⚠️ Document Type Validation Failed")
+                    st.markdown(analysis_result.final_output)
+                    
+                    # Helpful guidance section
+                    st.divider()
+                    st.info("💡 **Quick Fix Guide**")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("""
+                        **✅ How-to Guide Must Have:**
+                        - Numbered steps (1, 2, 3...)
+                        - Action verbs (Click, Enter, Select)
+                        - One specific task
+                        - Prerequisites section
+                        """)
+                    
+                    with col2:
+                        st.markdown("""
+                        **📝 Quick Template:**
+                        ```
+                        # [Task Title]
+                        
+                        ## Overview
+                        [What this accomplishes]
+                        
+                        ## Before you start
+                        - [Requirement 1]
+                        - [Requirement 2]
+                        
+                        ## Steps
+                        1. [Action verb] the [thing]
+                        2. [Action verb] to [result]
+                        3. [Verify] by [checking]
+                        ```
+                        """)
+                    
+                    st.stop()  # Stop processing here
+                
+                # ============================================
+                # VALID HOW-TO - CONTINUE NORMAL PROCESSING
+                # ============================================
                 
                 # Parse the three-part output
                 parsed_output = parse_analyzer_output(analysis_result.final_output)
@@ -288,10 +403,10 @@ if content:
                 st.session_state["redlined_version"] = parsed_output['redlined_version']
                 st.session_state["clean_draft"] = parsed_output['clean_draft']
                 
-                st.success("✅ Document analysis completed with tracked changes!")
+                status_placeholder.success("✅ Phase 1 complete: Document validated and analyzed!")
 
-                # Phase 2: Style Enforcement (Takes only clean draft)
-                st.info("✨ **Phase 2:** Applying Microsoft style guide...")
+                # Phase 2: Style Enforcement
+                progress_placeholder.info("✨ **Phase 2 of 3:** Applying Microsoft style guide...")
                 
                 loop = asyncio.new_event_loop()
                 enforced_result = loop.run_until_complete(
@@ -302,10 +417,10 @@ if content:
                 # Extract clean content from XML if present
                 st.session_state["final_document"] = extract_clean_content(enforced_result.final_output)
                 
-                st.success("✅ Style enforcement completed!")
+                status_placeholder.success("✅ Phase 2 complete: Style guide applied!")
                 
                 # Phase 3: Quality Evaluation
-                st.info("📊 **Phase 3:** Running quality evaluation...")
+                progress_placeholder.info("📊 **Phase 3 of 3:** Running quality evaluation...")
                 
                 try:
                     loop = asyncio.new_event_loop()
@@ -320,11 +435,10 @@ if content:
                     loop.close()
                     
                     st.session_state["evaluation_results"] = evaluation_results
-                    st.success("✅ Quality evaluation completed!")
+                    status_placeholder.success("✅ Phase 3 complete: Quality evaluation finished!")
                     
                 except Exception as eval_error:
-                    st.warning(f"⚠️ Quality evaluation encountered an issue: {str(eval_error)}")
-                    st.info("💡 The document was processed successfully. Evaluation metrics are optional.")
+                    status_placeholder.warning(f"⚠️ Phase 3: Quality evaluation had issues but document processed successfully")
                     
                     # Create minimal evaluation results for display
                     st.session_state["evaluation_results"] = {
@@ -334,13 +448,17 @@ if content:
                         'final_word_count': len(st.session_state["final_document"].split())
                     }
                 
+                # Final success message
+                progress_placeholder.success("🎉 **All phases complete!** Your how-to guide is ready.")
                 st.session_state["success"] = True
                 st.balloons()
 
             except Exception as e:
+                progress_placeholder.empty()
+                status_placeholder.empty()
                 st.session_state["success"] = False
                 st.error(f"❌ An error occurred during processing: {str(e)}")
-                st.info("💡 Please check your API key and try again.")
+                st.info("💡 Please check your input and try again.")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -359,40 +477,14 @@ if st.session_state.get("final_document"):
     
     with tab1:
         st.markdown("### 📊 Good Docs Template Compliance")
-        st.markdown(st.session_state["structure_analysis"])
         
-        st.divider()
+        # Display the structure analysis
+        structure_content = st.session_state["structure_analysis"]
+        st.markdown(structure_content)
         
-        # Key insights
-        st.markdown("#### 💡 Quick Insights")
-        analysis_text = st.session_state["structure_analysis"].lower()
-        
-        issues_found = []
-        if "❌" in st.session_state["structure_analysis"]:
-            issues_found.append("Missing template sections")
-        if "⚠️" in st.session_state["structure_analysis"]:
-            issues_found.append("Sections need improvement")
-        
-        if issues_found:
-            st.warning(f"⚠️ Found: {', '.join(issues_found)}")
-        
-        if "✅" in st.session_state["structure_analysis"]:
-            st.success("✅ Some sections already follow Good Docs standards")
-        
-        # Guide Statistics
-        st.divider()
-        st.markdown("### 📈 Document Statistics")
-        original_words = st.session_state["original_word_count"]
-        improved_words = len(st.session_state["final_document"].split())
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Original", f"{original_words} words")
-        with col2:
-            st.metric("Final", f"{improved_words} words")
-        with col3:
-            change = improved_words - original_words
-            st.metric("Change", f"{change:+d} words", delta=f"{(change/original_words*100):+.1f}%")
+        # Check if table is missing and show warning
+        if "| Section | Status | Assessment |" not in structure_content:
+            st.warning("⚠️ **Compliance table not generated.** The analyzer may have encountered an issue. Please review the analysis above for key findings.")
 
     with tab2:
         st.markdown("### 🔴 Tracked Changes (Redline View)")

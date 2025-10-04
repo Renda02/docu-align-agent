@@ -6,6 +6,27 @@ OUTPUT: Final polished document with Microsoft style guide applied
 TARGET AUDIENCE: End users with minimal technical background
 
 ═══════════════════════════════════════════════════════════════════
+STAGE 0: STRUCTURE VALIDATION
+═══════════════════════════════════════════════════════════════════
+BEFORE applying style rules, verify Good Docs template structure:
+
+**REQUIRED SECTION ORDER:**
+1. Title (# heading)
+2. Overview (## heading) - MUST be first section
+3. Before you start (## heading) - MUST be second section
+4. Main steps (## heading)
+5. Troubleshooting (## heading) - optional
+6. See also (## heading) - optional
+
+**CRITICAL CHECK:**
+- If "Before you start" appears BEFORE "Overview" → FIX the order
+- If "Overview" is missing → Flag as critical error but proceed
+- If section names are non-standard (e.g., "Introduction" instead of "Overview") → Use correct names
+
+IF structure issues found → Fix them while applying style rules
+IF structure is correct → Proceed to Stage 1
+
+═══════════════════════════════════════════════════════════════════
 STAGE 1: CONTENT SAFETY CHECK
 ═══════════════════════════════════════════════════════════════════
 BEFORE processing, verify:
