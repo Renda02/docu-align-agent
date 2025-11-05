@@ -4,6 +4,7 @@ Enhanced Documentation App with Track Changes Support
 - Safe evaluation handling with fallback for missing keys
 - 4-tab results: Structure Analysis, Track Changes, Final Draft, Quality Report
 - Good Docs Project validation with soft rejection
+- UI IMPROVEMENTS: Progress stepper, metric cards, toast notifications, improved empty state
 """
 
 import streamlit as st
@@ -31,6 +32,60 @@ from components.evaluation.evaluator import DocumentEvaluator
 from components.evaluation.dashboard import render_evaluation_section
 
 # --- Helper Functions ---
+def render_metric_card(title: str, value: str, status: str, icon: str, score: str = ""):
+    """Render a modern metric card"""
+    status_colors = {
+        "pass": {"bg": "#dcfce7", "border": "#10b981", "text": "#166534"},
+        "fail": {"bg": "#fee2e2", "border": "#ef4444", "text": "#991b1b"},
+        "warning": {"bg": "#fef3c7", "border": "#f59e0b", "text": "#92400e"}
+    }
+    
+    colors = status_colors.get(status, status_colors["warning"])
+    score_html = f"<div style='font-size: 14px; color: {colors['text']}; opacity: 0.8; margin-top: 4px;'>{score}</div>" if score else ""
+    
+    st.markdown(f"""
+    <div style='background: {colors["bg"]}; 
+                border-left: 4px solid {colors["border"]}; 
+                border-radius: 8px; padding: 1.5rem; margin: 0.5rem 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+        <div style='display: flex; align-items: center; gap: 1rem;'>
+            <div style='font-size: 36px;'>{icon}</div>
+            <div style='flex: 1;'>
+                <div style='font-size: 14px; color: {colors["text"]}; 
+                           opacity: 0.8; font-weight: 500;'>{title}</div>
+                <div style='font-size: 24px; color: {colors["text"]}; 
+                           font-weight: 700; margin-top: 4px;'>{value}</div>
+                {score_html}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_word_count_comparison():
+    """Render word count comparison visual"""
+    if st.session_state.get("original_word_count"):
+        original_wc = st.session_state["original_word_count"]
+        final_wc = len(st.session_state["final_document"].split())
+        change = final_wc - original_wc
+        change_pct = (change / original_wc) * 100 if original_wc > 0 else 0
+        
+        st.markdown(f"""
+        <div style='display: flex; gap: 1rem; align-items: center; 
+                    padding: 1rem; background: #f3f4f6; border-radius: 8px; margin: 1rem 0;'>
+            <div style='flex: 1; text-align: center;'>
+                <div style='font-size: 12px; color: #6b7280;'>Original</div>
+                <div style='font-size: 24px; font-weight: 700;'>{original_wc}</div>
+                <div style='font-size: 12px;'>words</div>
+            </div>
+            <div style='font-size: 32px; color: #2563eb;'>→</div>
+            <div style='flex: 1; text-align: center;'>
+                <div style='font-size: 12px; color: #6b7280;'>Final</div>
+                <div style='font-size: 24px; font-weight: 700; color: {"#10b981" if change >= 0 else "#ef4444"};'>{final_wc}</div>
+                <div style='font-size: 12px;'>words ({change:+d}, {change_pct:+.1f}%)</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 def parse_analyzer_output(output: str) -> dict:
     """
     Parse the three sections from Document Analyzer output:
@@ -97,8 +152,62 @@ st.set_page_config(
 if "page" not in st.session_state:
     st.session_state["page"] = "main"
 
-# Inject custom CSS
+# Inject custom CSS with pulse animation
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+# Enhanced Navigation CSS (ensure it loads)
+st.markdown("""
+<style>
+/* Enhanced Navigation Header */
+.nav-header-static {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-bottom: none !important;
+    padding: 1.25rem 0 !important;
+    margin-bottom: 2rem !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.nav-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 1rem !important;
+}
+
+.nav-icon {
+    font-size: 2rem !important;
+    background: white !important;
+    padding: 0.5rem !important;
+    border-radius: 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    width: 3.5rem !important;
+    height: 3.5rem !important;
+}
+
+.nav-text {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+}
+
+.nav-title {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: white !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1 !important;
+}
+
+.nav-subtitle {
+    font-size: 0.875rem !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 500 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
 <style>
 /* Target the text within disabled text areas to make it black */
@@ -149,7 +258,11 @@ st.markdown("""
 <div class="nav-header-static">
     <div class="nav-container">
         <div class="nav-brand">
-            <span class="nav-title">DocuAlign</span>
+            <span class="nav-icon">📝</span>
+            <div class="nav-text">
+                <span class="nav-title">DocuAlign</span>
+                <span class="nav-subtitle">AI-Powered Documentation</span>
+            </div>
         </div>
     </div>
 </div>
@@ -196,13 +309,7 @@ if st.session_state.get("page") == "evaluations":
 
 # Modern headline
 st.markdown(
-    '<div class="headline">Transform your <span class="highlight">how-to guides</span> with our AI-powered documentation system</div>',
-    unsafe_allow_html=True
-)
-
-# Descriptive subtext
-st.markdown(
-    '<div class="subtext">Upload your draft how-to content and watch as our AI improves it into a structured, how-to guide following The Good Docs Project template standards and Microsoft style guide.</div>',
+    '<div class="headline">Transform your <span class="highlight">drafts</span> with our AI-powered documentation system</div>',
     unsafe_allow_html=True
 )
 
@@ -218,57 +325,6 @@ uploaded_file = st.file_uploader(
 )
 
 st.divider()
-
-# Add helpful guidance BEFORE text input
-with st.expander("ℹ️ How-to Guide Requirements (Good Docs Project)", expanded=False):
-    st.markdown("""
-    Your document will be validated against **Good Docs Project how-to template** standards.
-    
-    **✅ Your document must include:**
-    
-    | Requirement | Description | Example |
-    |-------------|-------------|---------|
-    | **Numbered Steps** | Sequential steps (1, 2, 3...) | `1. Click Install` |
-    | **Action Verbs** | Steps start with verbs | `Open, Enter, Select, Configure` |
-    | **Single Task** | One specific goal | "Install Database" not "Learn Databases" |
-    | **Prerequisites** | What's needed before starting | Software, access, skills required |
-    | **Clear Outcome** | What users achieve | "Database installed and running" |
-    
-    **❌ Not a how-to guide:**
-    - **Concept** - Explains "what" or "why" (e.g., "What is an API?")
-    - **Tutorial** - Learning-focused with theory and exercises
-    - **Reference** - Technical specs and parameters
-    - **Multiple methods** - Shows several ways to do the same thing
-    
-    **💡 Quick How-to Template:**
-    ```markdown
-    # Install PostgreSQL Database
-    
-    ## Overview
-    This guide shows you how to install PostgreSQL on Ubuntu.
-    
-    ## Before you start
-    - Ubuntu 20.04 or later
-    - sudo privileges
-    - 15 minutes to complete
-    
-    ## Steps
-    1. Update package list: 
-       sudo apt update
-       
-    2. Install PostgreSQL:
-       sudo apt install postgresql
-       
-    3. Verify installation:
-       psql --version
-       
-       You should see: PostgreSQL 14.x
-    
-    ## See also
-    - Configuration guide
-    - Troubleshooting common issues
-    ```
-    """)
 
 # Alternative text input
 st.markdown("### ✏️ Or paste your content directly")
@@ -289,6 +345,35 @@ if uploaded_file:
         st.error("❌ Unable to decode file. Please ensure it's a text-based document.")
 elif user_content:
     content = user_content
+
+# --- Empty State (when no content) ---
+if not content:
+    st.divider()
+    st.markdown("""
+    <div style='text-align: center; padding: 3rem 1rem; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                border-radius: 16px; color: white; margin: 2rem 0;'>
+        <div style='font-size: 48px; margin-bottom: 1rem;'>📝</div>
+        <h2 style='color: white; margin-bottom: 1rem;'>Ready to Transform Your Documentation</h2>
+        <p style='font-size: 18px; opacity: 0.9; margin-bottom: 2rem;'>
+            Upload a document or paste content above to get started
+        </p>
+        <div style='display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;'>
+            <div style='background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 8px; min-width: 150px;'>
+                <div style='font-size: 32px;'>⚡</div>
+                <div style='font-size: 14px; margin-top: 0.5rem;'>Fast Processing</div>
+            </div>
+            <div style='background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 8px; min-width: 150px;'>
+                <div style='font-size: 32px;'>✨</div>
+                <div style='font-size: 14px; margin-top: 0.5rem;'>AI-Powered</div>
+            </div>
+            <div style='background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 8px; min-width: 150px;'>
+                <div style='font-size: 32px;'>📊</div>
+                <div style='font-size: 14px; margin-top: 0.5rem;'>Quality Reports</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- Analysis Section ---
 if content:
@@ -327,13 +412,13 @@ if content:
         progress_container = st.container()
         
         with progress_container:
-            # Single progress placeholder that we'll update
-            progress_placeholder = st.empty()
-            status_placeholder = st.empty()
+            # Single progress placeholder
+            progress_text = st.empty()
+            status_text = st.empty()
             
             try:
                 # Phase 1: Document Analysis with Type Validation
-                progress_placeholder.info("📊 **Phase 1 of 3:** Validating document type and analyzing structure...")
+                progress_text.info("**Phase 1 of 3:** 📊 Validating document type and analyzing structure...")
                 
                 loop = asyncio.new_event_loop()
                 analysis_result = loop.run_until_complete(runner.run(document_analyzer, content))
@@ -344,9 +429,6 @@ if content:
                 # ============================================
                 if "⚠️ DOCUMENT TYPE MISMATCH" in analysis_result.final_output:
                     # Document failed validation - show soft rejection
-                    progress_placeholder.empty()
-                    status_placeholder.empty()
-                    
                     st.session_state["type_mismatch"] = True
                     st.session_state["rejection_message"] = analysis_result.final_output
                     st.session_state["success"] = False
@@ -403,10 +485,10 @@ if content:
                 st.session_state["redlined_version"] = parsed_output['redlined_version']
                 st.session_state["clean_draft"] = parsed_output['clean_draft']
                 
-                status_placeholder.success("✅ Phase 1 complete: Document validated and analyzed!")
+                status_text.success("✅ Phase 1 complete: Document validated!")
 
                 # Phase 2: Style Enforcement
-                progress_placeholder.info("✨ **Phase 2 of 3:** Applying Microsoft style guide...")
+                progress_text.info("**Phase 2 of 3:** ✨ Applying Microsoft style guide...")
                 
                 loop = asyncio.new_event_loop()
                 enforced_result = loop.run_until_complete(
@@ -417,10 +499,10 @@ if content:
                 # Extract clean content from XML if present
                 st.session_state["final_document"] = extract_clean_content(enforced_result.final_output)
                 
-                status_placeholder.success("✅ Phase 2 complete: Style guide applied!")
+                status_text.success("✅ Phase 2 complete: Style guide applied!")
                 
                 # Phase 3: Quality Evaluation
-                progress_placeholder.info("📊 **Phase 3 of 3:** Running quality evaluation...")
+                progress_text.info("**Phase 3 of 3:** 📊 Running quality evaluation...")
                 
                 try:
                     loop = asyncio.new_event_loop()
@@ -435,11 +517,8 @@ if content:
                     loop.close()
                     
                     st.session_state["evaluation_results"] = evaluation_results
-                    status_placeholder.success("✅ Phase 3 complete: Quality evaluation finished!")
                     
                 except Exception as eval_error:
-                    status_placeholder.warning(f"⚠️ Phase 3: Quality evaluation had issues but document processed successfully")
-                    
                     # Create minimal evaluation results for display
                     st.session_state["evaluation_results"] = {
                         'evaluation_status': 'incomplete',
@@ -449,13 +528,14 @@ if content:
                     }
                 
                 # Final success message
-                progress_placeholder.success("🎉 **All phases complete!** Your how-to guide is ready.")
+                progress_text.empty()
+                status_text.success("🎉 **All phases complete!** Your how-to guide is ready.")
                 st.session_state["success"] = True
                 st.balloons()
 
             except Exception as e:
-                progress_placeholder.empty()
-                status_placeholder.empty()
+                progress_text.empty()
+                status_text.empty()
                 st.session_state["success"] = False
                 st.error(f"❌ An error occurred during processing: {str(e)}")
                 st.info("💡 Please check your input and try again.")
@@ -466,6 +546,9 @@ if content:
 if st.session_state.get("final_document"):
     st.divider()
     st.markdown("## 📋 Analysis Results")
+    
+    # Word count comparison at the top
+    render_word_count_comparison()
     
     # Create tabs for organized results
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -596,41 +679,27 @@ if st.session_state.get("final_document"):
                 else:
                     st.warning("⚠️ **Review Recommended** - Some quality criteria need attention.")
                 
-                # Quality metrics in columns
-                col1, col2, col3 = st.columns(3)
+                # Quality metrics using new card design
+                h7_status = "pass" if h7_pass else "fail"
+                h7_score = evaluation_results.get('h7_accuracy_score', 'N/A')
+                h7_score_text = f"Score: {h7_score}/5" if h7_score != 'N/A' else "Score: N/A"
+                render_metric_card("Technical Accuracy (H7)", "✅ PASS" if h7_pass else "❌ FAIL", h7_status, "🎯", h7_score_text)
+                if not h7_pass:
+                    st.caption("⚠️ CRITICAL: Technical elements may have been altered")
                 
-                with col1:
-                    h7_status = "✅ PASS" if h7_pass else "❌ FAIL"
-                    h7_score = evaluation_results.get('h7_accuracy_score', 'N/A')
-                    st.metric(
-                        "Technical Accuracy (H7)", 
-                        h7_status, 
-                        f"Score: {h7_score}/5" if h7_score != 'N/A' else "Score: N/A"
-                    )
-                    if not h7_pass:
-                        st.caption("⚠️ CRITICAL: Technical elements may have been altered")
+                h8_status = "pass" if h8_pass else "fail"
+                h8_score = evaluation_results.get('h8_style_score', 'N/A')
+                h8_score_text = f"Score: {h8_score}/5" if h8_score != 'N/A' else "Score: N/A"
+                render_metric_card("Style Compliance (H8)", "✅ PASS" if h8_pass else "❌ FAIL", h8_status, "✨", h8_score_text)
+                if not h8_pass:
+                    st.caption("⚠️ CRITICAL: Style guide rules not followed")
                 
-                with col2:
-                    h8_status = "✅ PASS" if h8_pass else "❌ FAIL"
-                    h8_score = evaluation_results.get('h8_style_score', 'N/A')
-                    st.metric(
-                        "Style Compliance (H8)", 
-                        h8_status, 
-                        f"Score: {h8_score}/5" if h8_score != 'N/A' else "Score: N/A"
-                    )
-                    if not h8_pass:
-                        st.caption("⚠️ CRITICAL: Style guide rules not followed")
-                
-                with col3:
-                    h9_status = "✅ PASS" if h9_pass else "❌ FAIL"
-                    h9_score = evaluation_results.get('h9_gap_resolution_score', 'N/A')
-                    st.metric(
-                        "Gap Resolution (H9)", 
-                        h9_status, 
-                        f"Score: {h9_score}/5" if h9_score != 'N/A' else "Score: N/A"
-                    )
-                    if not h9_pass:
-                        st.caption("⚠️ CRITICAL: Identified issues not properly resolved")
+                h9_status = "pass" if h9_pass else "fail"
+                h9_score = evaluation_results.get('h9_gap_resolution_score', 'N/A')
+                h9_score_text = f"Score: {h9_score}/5" if h9_score != 'N/A' else "Score: N/A"
+                render_metric_card("Gap Resolution (H9)", "✅ PASS" if h9_pass else "❌ FAIL", h9_status, "🔍", h9_score_text)
+                if not h9_pass:
+                    st.caption("⚠️ CRITICAL: Identified issues not properly resolved")
                 
                 # Detailed evaluation results
                 with st.expander("🔍 Detailed Quality Analysis", expanded=False):

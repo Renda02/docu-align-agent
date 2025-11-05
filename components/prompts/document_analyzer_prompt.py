@@ -146,6 +146,8 @@ STAGE 2: STRUCTURE ANALYSIS
 
 **OUTPUT ORDER: Start this section with the compliance table immediately, then follow with other analysis.**
 
+**CRITICAL: YOU MUST OUTPUT THIS EXACT TABLE FIRST - DO NOT SKIP:**
+
 **Good Docs Template Section Audit:**
 
 | Section | Status | Assessment |
@@ -158,7 +160,7 @@ STAGE 2: STRUCTURE ANALYSIS
 | Troubleshooting | [✅/⚠️/❌] | [Common errors/solutions covered?] |
 | See also | [✅/⚠️/❌] | [Links to related docs/concepts?] |
 
-**CRITICAL INSTRUCTION: Complete this table first before adding any additional commentary. Replace all [bracketed items] with actual status symbols (✅/⚠️/❌) and specific assessments.**
+**MANDATORY: Replace ALL [bracketed items] with actual values before continuing to other analysis.**
 
 **Instructions for completing the table:**
 - Replace [✅/⚠️/❌] with the actual status for each section

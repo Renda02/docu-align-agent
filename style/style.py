@@ -1,4 +1,4 @@
-# Simplified styling for DocuAlign with Track Changes support
+# Enhanced styling for DocuAlign with improved navigation branding
 CUSTOM_CSS = """
 <style>
 /* Import Inter font */
@@ -73,13 +73,14 @@ CUSTOM_CSS = """
 }
 
 /* ========================================
-   Navigation Header (Simplified)
+   Navigation Header (Enhanced with Branding)
    ======================================== */
 .nav-header-static {
-    background-color: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-    padding: 1.5rem 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-bottom: none;
+    padding: 1.25rem 0;
     margin-bottom: 2rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .nav-container {
@@ -88,11 +89,49 @@ CUSTOM_CSS = """
     padding: 0 2rem;
 }
 
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-icon {
+    font-size: 2rem;
+    background: white;
+    padding: 0.5rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 3.5rem;
+    height: 3.5rem;
+    transition: transform 0.2s;
+}
+
+.nav-icon:hover {
+    transform: scale(1.05);
+}
+
+.nav-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
 .nav-title {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: white;
     letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.nav-subtitle {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+    letter-spacing: 0.01em;
 }
 
 /* Hide default Streamlit header */
@@ -300,7 +339,7 @@ button[kind="secondary"]:hover {
 }
 
 /* ========================================
-   Track Changes Styling (NEW!)
+   Track Changes Styling
    ======================================== */
 
 /* Redline markup elements */
@@ -545,6 +584,20 @@ hr {
     .main .block-container {
         padding-left: 1rem;
         padding-right: 1rem;
+    }
+    
+    .nav-icon {
+        width: 3rem;
+        height: 3rem;
+        font-size: 1.5rem;
+    }
+    
+    .nav-title {
+        font-size: 1.5rem;
+    }
+    
+    .nav-subtitle {
+        font-size: 0.75rem;
     }
     
     .headline {
